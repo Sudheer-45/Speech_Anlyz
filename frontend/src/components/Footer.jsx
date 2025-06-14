@@ -40,7 +40,7 @@ function Footer() {
       }
 
       const response = await axios.post(
-        'http://localhost:5000/api/feedback/submit',
+        'https://comm-analyzer.onrender.com/api/feedback/submit',
         { feedbackType, message, rating },
         { headers: { Authorization: `Bearer ${token}` } }
       );
