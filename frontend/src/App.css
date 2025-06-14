@@ -1,0 +1,248 @@
+/* src/App.css */
+
+/* Global styles and Font application */
+body {
+  font-family: 'Nunito', sans-serif;
+  background-color: #f8f9fa; /* Light background for the overall page, matches Bootstrap's 'light' */
+  color: #343a40; /* Default darker text for better readability */
+  line-height: 1.6; /* Improved readability */
+}
+
+/* Custom scrollbar for better aesthetics */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #e9ecef; /* Lighter track */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #adb5bd; /* A neutral gray */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6c757d; /* Darker gray on hover */
+}
+
+/* Main Page Container (applies to `container` class where your content is) */
+.container {
+  max-width: 1200px; /* Max width for a clean look on large screens */
+}
+
+/* Dashboard Card Enhancements (applies to main card container on all pages) */
+.card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Smooth transitions */
+  border-radius: 1rem !important; /* Larger border-radius for softer look */
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08) !important; /* Stronger, more premium shadow */
+  border: none !important; /* Remove default Bootstrap border for a cleaner look */
+}
+
+.card:hover {
+  transform: translateY(-5px); /* Lift effect on hover */
+  box-shadow: 0 0.9rem 2rem rgba(0, 0, 0, 0.12) !important; /* Enhanced shadow on hover */
+}
+
+/* Header Styling (matching dashboard's primary color usage) */
+.h1.fw-bold, .h2.fw-bold, .h3.fw-bold, .h4.fw-bold {
+  color: #0d6efd !important; /* Forces primary blue for main titles */
+}
+
+/* Sub-headings / Secondary text color */
+.text-secondary {
+    color: #495057 !important; /* Consistent dark gray for secondary headings */
+}
+
+/* Lead paragraph styling */
+.lead {
+    font-size: 1.15rem;
+    font-weight: 400;
+    color: #6c757d;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: #0d6efd; /* Consistent primary blue */
+  border-color: #0d6efd;
+  transition: all 0.3s ease;
+  font-weight: 600; /* Slightly bolder text */
+  padding: 0.75rem 1.5rem; /* More generous padding */
+  border-radius: 2rem !important; /* Fully rounded pills */
+}
+
+.btn-primary:hover {
+  background-color: #0a58ca; /* Darker on hover */
+  border-color: #0a58ca;
+  transform: translateY(-2px); /* Slight lift */
+  box-shadow: 0 4px 10px rgba(13, 110, 253, 0.2); /* Shadow for buttons */
+}
+
+.btn-outline-primary {
+  color: #0d6efd;
+  border-color: #0d6efd;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  border-radius: 0.5rem; /* Matches card border-radius */
+}
+
+.btn-outline-primary:hover {
+  background-color: #0d6efd;
+  color: #fff;
+  box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    border-radius: 2rem !important; /* Fully rounded pills */
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    color: #fff;
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+}
+
+
+.btn-outline-info { /* Styling for 'Simplify Section' button (Terms page) */
+    color: #0dcaf0;
+    border-color: #0dcaf0;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    border-radius: 2rem !important; /* Fully rounded pills */
+}
+
+.btn-outline-info:hover {
+    background-color: #0dcaf0;
+    color: #fff;
+    box-shadow: 0 4px 8px rgba(13, 202, 240, 0.2);
+}
+
+.btn-success { /* Styling for 'Summarize Terms' button */
+    background-color: #198754; /* Bootstrap green */
+    border-color: #198754;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 2rem !important;
+}
+
+.btn-success:hover {
+    background-color: #157347;
+    border-color: #146c43;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(25, 135, 84, 0.2);
+}
+
+/* Badges for status in dashboard table */
+.badge {
+  font-weight: 600;
+  padding: 0.4em 0.8em;
+  border-radius: 0.5rem;
+  text-transform: uppercase;
+  font-size: 0.75rem; /* Smaller for dashboard badges */
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Table styling for dashboard */
+.table-responsive.rounded-3 {
+  border: 1px solid #e9ecef; /* Light border for the table container */
+}
+
+.table thead th {
+    font-size: 0.75rem; /* Smaller, more subtle table headers */
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+    border-bottom: 2px solid #e9ecef; /* Stronger header bottom border */
+    padding: 1rem 1.25rem; /* More padding in table headers */
+}
+
+.table tbody tr {
+    transition: background-color 0.15s ease-in-out;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa; /* Lighter hover for table rows */
+}
+
+.table tbody td {
+    vertical-align: middle; /* Center content vertically in table cells */
+    font-size: 0.875rem;
+    color: #343a40;
+    padding: 1rem 1.25rem; /* More padding in table cells */
+}
+
+/* Expanded video details section */
+.border-top.border-primary-subtle {
+    border-color: #0d6efd40 !important; /* A lighter shade of primary for the border */
+}
+
+/* Text areas for transcription and feedback */
+.bg-white.p-4.rounded-3.border.shadow-sm.overflow-auto {
+    background-color: #f8f9fa !important; /* Lighter background for text boxes */
+    border-color: #e9ecef !important; /* Subtle border color */
+    padding: 1.25rem !important; /* More padding */
+    font-size: 0.95rem; /* Slightly larger text for readability */
+}
+
+/* Alert messages */
+.alert.alert-danger, .alert.alert-info, .alert.alert-success, .alert.alert-warning {
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 1rem 1.5rem;
+}
+
+/* Specific styling for the simplified explanation box on Terms page */
+.bg-light.rounded-3.border.border-info-subtle {
+    background-color: #e3f2fd !important; /* Lighter info shade (Bootstrap's blue-100) */
+    border-color: #90caf9 !important; /* Matching border (Bootstrap's blue-200) */
+}
+
+/* Custom text colors for Lucide icons (adjust as needed if not using Bootstrap's default color classes) */
+.text-primary { color: #0d6efd !important; }
+.text-info { color: #0dcaf0 !important; }
+.text-success { color: #198754 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-danger { color: #dc3545 !important; }
+.text-purple { color: #6f42c1 !important; } /* Custom purple for video icon if needed */
+
+
+/* Responsive adjustments - Bootstrap handles most, but custom tweaks here */
+@media (max-width: 767.98px) { /* Small devices (landscape phones, 576px and up) */
+  .h1.fw-bold {
+    font-size: 2rem !important; /* Adjust header size for smaller screens */
+  }
+  .h2.fw-bold {
+    font-size: 1.75rem !important;
+  }
+  .btn.rounded-pill {
+    width: 100%; /* Full width button on small screens */
+    margin-top: 1rem;
+  }
+  .p-md-5 {
+    padding: 1.5rem !important; /* Adjust padding on card for small screens */
+  }
+  .lead.text-center {
+    font-size: 1rem !important; /* Smaller lead text on small screens */
+  }
+}
+

@@ -1,0 +1,290 @@
+/* Premium 3D Effect Dashboard Page Styling */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(145deg, #0a0a1f, #1e2a44); /* Dark gradient from MainApplication */
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Particle Background */
+.dashboard-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+  z-index: -1;
+  animation: pulse 15s ease-in-out infinite;
+}
+
+.dashboard-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="2" fill="rgba(59,130,246,0.4)"/></svg>') repeat;
+  background-size: 50px 50px;
+  animation: float 25s linear infinite;
+  z-index: -2;
+  opacity: 0.2;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.1); opacity: 0.5; }
+}
+
+@keyframes float {
+  0% { background-position: 0 0; }
+  100% { background-position: 50px 50px; }
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 3rem 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-content h1 {
+  font-size: 3.5rem;
+  margin-bottom: 2rem;
+  color: #3b82f6; /* Neon blue */
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  transform: translateZ(20px);
+}
+
+.error-message {
+  font-size: 1.2rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.25);
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+  transform: translateZ(10px);
+  margin: 1rem auto;
+  max-width: 80%;
+}
+
+.no-data,
+.no-feedback {
+  font-size: 1.2rem;
+  color: #d1d5db;
+  background: rgba(20, 20, 40, 0.75);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transform: translateZ(10px);
+  margin: 1rem auto;
+  max-width: 80%;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-card {
+  background: rgba(20, 20, 40, 0.75); /* Glassmorphism */
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform: translateZ(10px);
+  opacity: 0;
+  animation: fadeInSection 0.8s ease-out forwards;
+}
+
+.dashboard-card:nth-child(1) { animation-delay: 0.2s; }
+.dashboard-card:nth-child(2) { animation-delay: 0.4s; }
+.dashboard-card:nth-child(3) { animation-delay: 0.6s; }
+.dashboard-card:nth-child(4) { animation-delay: 0.8s; }
+
+@keyframes fadeInSection {
+  from { opacity: 0; transform: translateY(30px) translateZ(0); }
+  to { opacity: 1; transform: translateY(0) translateZ(10px); }
+}
+
+.dashboard-card:hover {
+  transform: translateZ(20px) translateY(-5px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+}
+
+.dashboard-card.full-width {
+  grid-column: 1 / -1;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.dashboard-card h3 {
+  font-size: 1.8rem;
+  color: #ffffff;
+  margin-bottom: 1rem;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+  transform: translateZ(20px);
+}
+
+.dashboard-card p {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #3b82f6;
+  margin: 0;
+}
+
+.dashboard-card ul {
+  list-style: none;
+  padding: 0;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.dashboard-card ul li {
+  background: rgba(30, 30, 50, 0.85);
+  padding: 1rem 1.2rem;
+  border-radius: 8px;
+  margin-bottom: 0.8rem;
+  font-size: 1rem;
+  color: #d1d5db;
+  border-left: 3px solid #3b82f6;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  transform: translateZ(10px);
+}
+
+.dashboard-card ul li p {
+  font-size: 1rem;
+  font-weight: normal;
+  color: #d1d5db;
+  margin: 0.5rem 0;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid #3b82f6;
+  border-top: 6px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  transform: translateZ(10px);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: 1.5rem 0.5rem;
+  }
+
+  .dashboard-content h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .dashboard-card {
+    padding: 1rem;
+  }
+
+  .dashboard-card h3 {
+    font-size: 1.6rem;
+  }
+
+  .dashboard-card p {
+    font-size: 1.8rem;
+  }
+
+  .dashboard-card ul li {
+    padding: 0.8rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .dashboard-content {
+    padding: 2rem 1rem;
+  }
+
+  .dashboard-content h1 {
+    font-size: 3rem;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.8rem;
+  }
+
+  .dashboard-card {
+    padding: 1.2rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .dashboard-content {
+    padding: 3rem 2rem;
+  }
+
+  .dashboard-card {
+    padding: 1.8rem;
+  }
+}

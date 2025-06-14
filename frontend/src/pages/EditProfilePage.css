@@ -1,0 +1,238 @@
+/* frontend/src/pages/EditProfilePage.css */
+
+.edit-profile-page-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #242424; /* Dark background */
+    color: #f0f0f0; /* Light text */
+}
+
+.edit-profile-content {
+    flex: 1; /* Takes up remaining vertical space */
+    padding: 40px 20px;
+    max-width: 800px; /* Max width for the content area */
+    margin: 0 auto; /* Center content horizontally */
+    width: 100%; /* Ensure it takes full width on small screens */
+    box-sizing: border-box; /* Include padding in width calculation */
+    text-align: center; /* Center headings/general text */
+}
+
+.edit-profile-content h1 {
+    font-size: 3em;
+    margin-bottom: 30px;
+    color: #646cff; /* Accent color for headings */
+}
+
+.edit-profile-content p {
+    font-size: 1.1em;
+    margin-bottom: 25px;
+    color: #d0d0d0; /* Slightly darker light text */
+}
+
+/* Styling for the placeholder edit form card */
+.edit-form-placeholder {
+    background-color: #2a2a2a; /* Slightly lighter dark background for the card */
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); /* Soft shadow */
+    border: 1px solid rgba(70, 70, 70, 0.5); /* Subtle border */
+    text-align: left; /* Align form elements to the left within the card */
+    max-width: 500px; /* Max width for the form card */
+    margin-left: auto;
+    margin-right: auto; /* Center the card */
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Space between form elements */
+}
+
+.edit-form-placeholder label {
+    font-size: 1em;
+    color: #c0c0c0;
+    margin-bottom: 5px; /* Space between label and input */
+    display: block; /* Ensures label takes full width */
+}
+
+.edit-form-placeholder input,
+.edit-form-placeholder textarea { /* Added textarea here */
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #555; /* Darker border for inputs */
+    border-radius: 6px;
+    background-color: #333; /* Darker background for inputs */
+    color: #f0f0f0;
+    font-size: 0.9em;
+    outline: none; /* Remove default outline */
+    box-sizing: border-box; /* Include padding in width */
+}
+
+/* New: Styling for the file upload group */
+.file-upload-group {
+    display: flex;
+    flex-wrap: wrap; /* Allow items to wrap */
+    align-items: center;
+    gap: 10px; /* Space between choose button and file name */
+    margin-bottom: 15px; /* Space below the file input group */
+}
+
+.file-upload-label {
+    flex-basis: 100%; /* Make label take full width on its own line */
+    margin-bottom: 5px; /* Space below the label */
+}
+
+.upload-button {
+    padding: 8px 15px;
+    background-color: #646cff; /* Accent color */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease;
+}
+
+.upload-button:hover {
+    background-color: #535bf2;
+}
+
+.file-name {
+    color: #a0a0a0;
+    font-size: 0.85em;
+    /* Ensure it doesn't take up too much space and wraps if needed */
+    flex: 1 1 auto; /* Allow it to grow and shrink */
+    word-break: break-all; /* Break long file names */
+}
+
+/* Styles for the "No image selected" placeholder */
+.no-image-placeholder {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%; /* Make it circular */
+    border: 1px dashed #646cff; /* Accent border */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: #c0c0c0;
+    font-size: 0.9em;
+    margin: 20px auto 0; /* Center and add space */
+    background-color: #333; /* Darker background */
+}
+
+/* Styles for the image preview container */
+.profile-picture-preview {
+    width: 150px; /* Desired width */
+    height: 150px; /* Desired height */
+    border-radius: 50%; /* Make it circular */
+    overflow: hidden; /* Hide parts of the image that go outside the circle */
+    margin: 20px auto 0; /* Center the image and add some space */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #646cff; /* Accent border */
+    box-shadow: 0 0 10px rgba(100, 108, 255, 0.5); /* Soft glowing shadow */
+}
+
+/* Styles for the actual image within the preview container */
+.profile-picture-preview img {
+    width: 100%; /* Make the image fill the width of its container */
+    height: 100%; /* Make the image fill the height of its container */
+    object-fit: cover; /* This is key: it crops the image to fit without distortion */
+    display: block; /* Remove extra space below image */
+}
+
+
+.password-change-info {
+    font-size: 0.9em;
+    color: #a0a0a0;
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+/* Styling for the Save and Cancel buttons */
+.form-actions {
+    display: flex; /* Make it a flex container */
+    justify-content: flex-end; /* Align buttons to the right */
+    gap: 15px; /* Adds space between the buttons */
+    margin-top: 20px; /* Add some space above the button group */
+    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens if they become too wide */
+}
+
+.save-changes-button,
+.cancel-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin-top: 0; /* Important: Override any previous margin-top to use parent's gap */
+}
+
+.save-changes-button {
+    background-color: #28a745; /* Green for Save */
+    color: white;
+}
+
+.save-changes-button:hover {
+    background-color: #218838;
+    transform: translateY(-1px);
+}
+
+.cancel-button {
+    background-color: #6c757d; /* Grey for Cancel */
+    color: white;
+}
+
+.cancel-button:hover {
+    background-color: #5a6268;
+    transform: translateY(-1px);
+}
+
+/* Styling for success/error messages */
+.status-message {
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+    .edit-profile-content {
+        padding: 20px 10px; /* Reduced padding on smaller screens */
+    }
+    .edit-profile-content h1 {
+        font-size: 2.5em;
+    }
+    .edit-form-placeholder {
+        padding: 20px; /* Reduced padding for the card */
+        gap: 10px; /* Reduced gap between elements */
+    }
+}
+
+/* Responsive adjustment for very small screens (e.g., mobile portrait) */
+@media (max-width: 480px) {
+  .form-actions {
+    flex-direction: column; /* Stack buttons vertically on very small screens */
+    gap: 10px; /* Adjust gap for vertical stacking */
+    align-items: stretch; /* Make buttons fill the width when stacked */
+  }
+}
