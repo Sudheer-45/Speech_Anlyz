@@ -39,7 +39,7 @@ function EditProfilePage() {
           return;
         }
 
-        const response = await axios.get('http://localhost:5000/api/user/profile', {
+        const response = await axios.get('https://comm-analyzer.onrender.com/api/user/profile', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -136,7 +136,7 @@ function EditProfilePage() {
         const formData = new FormData();
         formData.append('profileImage', profileImageFile); // 'profileImage' should match backend field name
 
-        const uploadResponse = await axios.post('http://localhost:5000/api/upload/profile-image', formData, {
+        const uploadResponse = await axios.post('https://comm-analyzer.onrender.com/api/upload/profile-image', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`
@@ -157,7 +157,7 @@ function EditProfilePage() {
         updateData.password = password;
       }
 
-      const response = await axios.put('http://localhost:5000/api/user/profile', updateData, {
+      const response = await axios.put('https://comm-analyzer.onrender.com/api/user/profile', updateData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
