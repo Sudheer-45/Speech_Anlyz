@@ -22,7 +22,7 @@ function LoginPage() {
         setIsSubmitting(true);
 
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            const response = await axios.post('https://comm-analyzer.onrender.com/api/auth/login', {
                 email,
                 password,
             });
