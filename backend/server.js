@@ -14,9 +14,9 @@ connectDB();
 
 const app = express();
 
-// CORS middleware
+// CORS middleware - CRUCIAL FIX HERE
 app.use(cors({
-    origin: 'http://localhost:5173', // Your frontend origin
+    origin: process.env.CORS_ORIGIN, // <--- CHANGE THIS LINE to read from environment variable
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
 }));
