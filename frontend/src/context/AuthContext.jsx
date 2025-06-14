@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
       try {
         // IMPORTANT: You'll need a backend endpoint like /api/auth/me
         // to verify the token and return user data based on the token.
-        const response = await axios.get('http://localhost:5000/api/auth/me', {
+        const response = await axios.get('https://comm-analyzer.onrender.com/api/auth/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
