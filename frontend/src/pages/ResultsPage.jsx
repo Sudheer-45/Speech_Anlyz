@@ -52,7 +52,7 @@ function ResultsPage() {
     if (window.confirm('Are you sure you want to delete this analysis?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/analysis/${analysisId}`, {
+        await axios.delete(`https://comm-analyzer.onrender.com/api/analysis/${analysisId}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
