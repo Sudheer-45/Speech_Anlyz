@@ -99,7 +99,7 @@ function ProfilePage() {
   }
 
   // Fallback to a better default if profilePictureUrl is missing or invalid
-  const profilePictureUrl = userProfile?.profilePictureUrl || 'http://localhost:5000/uploads/profile-images/default-user.png';
+  const profilePictureUrl = userProfile?.profilePictureUrl || 'https://comm-analyzer.onrender.com/uploads/profile-images/default-user.png';
   const userName = userProfile?.username || 'N/A';
   const userEmail = userProfile?.email || 'N/A';
   const memberSince = formatMemberSince(userProfile?.createdAt);
