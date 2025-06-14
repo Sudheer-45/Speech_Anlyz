@@ -29,7 +29,7 @@ function ResultsPage() {
           return;
         }
 
-        const response = await axios.get('http://localhost:5000/api/analysis/my-analyses', {
+        const response = await axios.get('https://comm-analyzer.onrender.com/api/analysis/my-analyses', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
