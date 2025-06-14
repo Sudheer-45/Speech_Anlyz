@@ -26,7 +26,7 @@ function DashboardPage() {
           setLoading(false);
           return;
         }
-        const response = await axios.get('http://localhost:5000/api/user/dashboard', {
+        const response = await axios.get('https://comm-analyzer.onrender.com/api/user/dashboard', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
