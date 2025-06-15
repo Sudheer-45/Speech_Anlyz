@@ -46,7 +46,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
   
   const { originalname, filename, path: filePath } = req.file;
   const userId = req.user._id;
-  const videoUrl = `http://localhost:5000/${filePath.replace(/\\/g, '/')}`;
+  const videoUrl = `https://comm-analyzer.onrender.com/${filePath.replace(/\\/g, '/')}`;
 
   let newVideoRecord;
   try {
