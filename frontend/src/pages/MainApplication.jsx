@@ -59,7 +59,7 @@ function MainApplication() {
         throw new Error('User not authenticated. Please log in.');
       }
 
-      const uploadResponse = await axios.post('http://localhost:5000/api/upload', formData, {
+      const uploadResponse = await axios.post('https://comm-analyzer.onrender.com/api/upload', formData, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
