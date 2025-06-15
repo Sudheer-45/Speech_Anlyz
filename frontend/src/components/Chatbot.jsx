@@ -1,10 +1,13 @@
+// frontend/src/components/Chatbot.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+// Optional: If you use Lucide-React for icons, you can import X for close button
+// import { X } from 'lucide-react'; 
 
 // IMPORTANT: Replace with your actual Render backend URL
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com"; 
 
-function Chatbot() {
+function Chatbot({ isVisible, onClose }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -19,12 +22,24 @@ function Chatbot() {
         scrollToBottom();
     }, [messages]); // Scroll whenever messages change
 
-    // Initial welcome message
+    // Initial welcome message only when visible
     useEffect(() => {
-        setMessages([
-            { sender: 'bot', text: "Hello! I'm your Comm Analyzer Chatbot. Ask me anything about communication, grammar, or tips to improve your speaking skills!" }
-        ]);
-    }, []);
+        if (isVisible && messages.length === 0) { // Only add if visible and no messages yet
+            setMessages([
+                { sender: 'bot', text: "Hello! I'm your Comm Analyzer Chatbot. Ask me anything about communication, grammar, or tips to improve your speaking skills!" }
+            ]);
+        }
+        // Clear messages when chatbot closes, so it's fresh next time it opens
+        if (!isVisible) {
+            setMessages([]);
+            setInput('');
+            setIsLoading(false);
+        }
+    }, [isVisible]);
+
+    if (!isVisible) {
+        return null; // Don't render anything if not visible
+    }
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -66,10 +81,27 @@ function Chatbot() {
     };
 
     return (
-        <div className="chatbot-container p-4 flex flex-col h-[600px] max-w-md mx-auto bg-white rounded-lg shadow-xl border border-gray-200"
-             style={{ fontFamily: 'Inter, sans-serif' }}>
-            <h2 className="text-2xl font-bold mb-4 text-center text-blue-700">Comm Chatbot</h2>
-            <div className="messages-display flex-grow overflow-y-auto p-3 mb-4 space-y-3 bg-gray-50 rounded-lg border border-gray-100">
+        <div 
+            className="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
+            style={{ 
+                width: '380px', // Fixed width
+                height: '500px', // Fixed height
+                fontFamily: 'Inter, sans-serif' 
+            }}
+        >
+            <div className="flex justify-between items-center bg-blue-700 text-white p-3 rounded-t-lg shadow-md">
+                <h2 className="text-xl font-bold">Comm Chatbot</h2>
+                <button 
+                    onClick={onClose} 
+                    className="text-white hover:bg-blue-600 rounded-full p-1 transition-colors duration-200"
+                    aria-label="Close Chatbot"
+                >
+                    {/* If you have lucide-react installed, uncomment this: <X size={20} /> */}
+                    {/* Otherwise, use a simple 'X' */}
+                    &times; {/* HTML entity for 'times' or 'x' character */}
+                </button>
+            </div>
+            <div className="messages-display flex-grow overflow-y-auto p-3 space-y-3 bg-gray-50 border-b border-gray-100">
                 {messages.map((msg, index) => (
                     <div key={index} className={`message ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
                         <span className={`inline-block p-2 rounded-lg ${
@@ -90,7 +122,7 @@ function Chatbot() {
                 )}
                 <div ref={messagesEndRef} /> {/* For scrolling */}
             </div>
-            <form onSubmit={handleSendMessage} className="message-input-form flex">
+            <form onSubmit={handleSendMessage} className="message-input-form flex p-3 border-t border-gray-200 bg-white">
                 <input
                     type="text"
                     value={input}
