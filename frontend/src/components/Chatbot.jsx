@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext'; // Fix for useAuth error
+import { useAuth } from '../context/AuthContext';
 import './Chatbot.css';
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
@@ -14,10 +14,9 @@ function Chatbot({ isVisible, onClose }) {
   const [expandedAnalysis, setExpandedAnalysis] = useState({});
   const messagesEndRef = useRef(null);
   const chatbotRef = useRef(null);
-  const { recheckAuth } = useAuth(); // Access auth context
-  const recordingTimeoutRef = useRef(null); // Timeout for recording
+  const { recheckAuth } = useAuth();
+  const recordingTimeoutRef = useRef(null);
 
-  // Auto-scroll to latest message
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -26,7 +25,6 @@ function Chatbot({ isVisible, onClose }) {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize Web Speech API
   useEffect(() => {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -39,7 +37,7 @@ function Chatbot({ isVisible, onClose }) {
         setInput(transcript);
         setIsRecording(false);
         clearTimeout(recordingTimeoutRef.current);
-        handleSendMessage(new Event('submit'), true); // Auto-send
+        handleSendMessage(new Event('submit'), true);
       };
       recog.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
@@ -61,7 +59,6 @@ function Chatbot({ isVisible, onClose }) {
     };
   }, []);
 
-  // Welcome message and cleanup
   useEffect(() => {
     if (isVisible && messages.length === 0) {
       setMessages([
@@ -79,12 +76,25 @@ function Chatbot({ isVisible, onClose }) {
     }
   }, [isVisible, recognition]);
 
-  // Focus management for accessibility
   useEffect(() => {
     if (isVisible) {
       chatbotRef.current?.focus();
     }
   }, [isVisible]);
+
+  useEffect(() => {
+    // Log resource errors
+    const handleError = (event) => {
+      if (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK') {
+        console.error('Resource load error:', {
+          url: event.target.src || event.target.href,
+          tag: event.target.tagName
+        });
+      }
+    };
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
 
   const handleSendMessage = async (e, isVoice = false) => {
     e.preventDefault();
@@ -104,6 +114,7 @@ function Chatbot({ isVisible, onClose }) {
         return;
       }
 
+      console.log('Sending POST to:', `${RENDER_BACKEND_URL}/api/chatbot/message`, { message: input.trim(), isVoice, token: token.substring(0, 10) + '...' });
       const response = await axios.post(
         `${RENDER_BACKEND_URL}/api/chatbot/message`,
         { message: input.trim(), isVoice },
@@ -119,15 +130,24 @@ function Chatbot({ isVisible, onClose }) {
       setMessages((prev) => [...prev, botResponse]);
 
     } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage = error.response?.status === 401
-        ? 'Session expired. Please log in again.'
-        : error.response?.data?.message || 'Sorry, I am having trouble connecting right now. Please try again later.';
-      setMessages((prev) => [...prev, { sender: 'bot', text: errorMessage }]);
-      if (error.response?.status === 401) {
+      console.error('Error sending message:', {
+        message: error.message,
+        status: error.response?.status,
+        response: error.response?.data,
+        url: error.config?.url
+      });
+      const status = error.response?.status;
+      let errorMessage = 'Sorry, I am having trouble connecting right now. Please try again later.';
+      if (status === 401) {
+        errorMessage = 'Session expired. Please log in again.';
         localStorage.removeItem('token');
         recheckAuth();
+      } else if (status === 404) {
+        errorMessage = 'Chatbot endpoint not found. Please contact support.';
+      } else if (status === 502) {
+        errorMessage = error.response?.data?.message || 'Failed to connect to the language model. Please try again.';
       }
+      setMessages((prev) => [...prev, { sender: 'bot', text: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +166,6 @@ function Chatbot({ isVisible, onClose }) {
       try {
         recognition.start();
         setIsRecording(true);
-        // Set 10-second timeout to prevent infinite recording
         recordingTimeoutRef.current = setTimeout(() => {
           recognition.stop();
           setMessages((prev) => [...prev, { sender: 'bot', text: "Recording timed out. Please try again or type your message." }]);
