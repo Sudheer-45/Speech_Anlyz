@@ -14,7 +14,7 @@ router.post('/profile-image', protect, upload.single('profileImage'), (req, res)
 
   // Construct the URL where the image can be accessed
   // This assumes your static files are served from /uploads/profile-images/
- const imageUrl = `http://localhost:5000/${req.file.path.replace(/\\/g, '/')}`;
+ const imageUrl = `https://comm-analyzer.onrender.com/${req.file.path.replace(/\\/g, '/')}`;
   console.log('Image uploaded successfully. Returned URL:', imageUrl); // Add this log
   res.json({ message: 'Image uploaded successfully', imageUrl: imageUrl });
 });
