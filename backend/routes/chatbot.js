@@ -2,60 +2,103 @@ const express = require('express');
 const router = express.Router();
 const asyncHandler = require('express-async-handler');
 const { protect } = require('../middleware/authMiddleware');
+const Chat = require('../models/Chat');
+const multer = require('multer');
 
-// In-memory chat history (for simplicity; use a database for production)
-const chatHistories = new Map(); // Map<userId, Array<{ role: string, parts: Array<{ text: string }> }>>
+// Multer for audio uploads
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Simulate speech analysis (replace with actual logic if available)
-const simulateSpeechAnalysis = (message) => {
-  // Mock analysis based on message content (e.g., length, keywords)
-  const wordCount = message.split(/\s+/).length;
-  const grammarScore = Math.min(90, 80 + wordCount * 0.5); // Simple heuristic
-  const tone = wordCount > 10 ? 'Confident' : 'Neutral'; // Basic tone detection
-  const tips = [
-    wordCount < 5 ? 'Try speaking in longer sentences for clarity.' : 'Good sentence length!',
-    'Practice pausing between ideas for emphasis.',
-    grammarScore < 85 ? 'Review grammar rules for complex sentences.' : 'Great grammar!'
-  ];
-  return {
-    grammar: Math.round(grammarScore),
-    tone,
-    tips
-  };
+// LanguageTool grammar analysis
+const analyzeGrammar = async (text) => {
+  try {
+    console.log('Sending text to LanguageTool API...');
+    const response = await fetch('https://api.languagetool.org/v2/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `text=${encodeURIComponent(text)}&language=en-US`
+    });
+    if (!response.ok) {
+      console.error('LanguageTool API error:', response.status);
+      throw new Error('LanguageTool API call failed.');
+    }
+    const data = await response.json();
+    console.log('LanguageTool response:', data);
+    const score = Math.max(0, 100 - data.matches.length * 5); // Ensure score >= 0
+    return { score, issues: data.matches };
+  } catch (error) {
+    console.error('LanguageTool error:', error.message);
+    return { score: 80, issues: [] }; // Fallback score
+  }
 };
 
-router.post('/message', protect, asyncHandler(async (req, res) => {
-  const { message, isVoice } = req.body;
-  const userId = req.user._id; // From protect middleware
+// Parse Gemini response (simplified regex-based parsing)
+const parseGeminiResponse = (text) => {
+  const toneMatch = text.match(/tone:\s*(\w+)/i);
+  const tipsMatch = text.match(/tips:\s*([\s\S]*)/i);
+  const tone = toneMatch ? toneMatch[1] : 'Neutral';
+  const tips = tipsMatch
+    ? tipsMatch[1].split('\n').filter(t => t.trim()).slice(0, 3)
+    : ['Practice clear enunciation.', 'Vary your pitch for engagement.'];
+  return { tone, tips };
+};
 
-  if (!message || typeof message !== 'string') {
+router.post('/message', protect, upload.single('audio'), asyncHandler(async (req, res) => {
+  const { message, isVoice } = req.body;
+  const audio = req.file;
+  const userId = req.user._id;
+
+  if (!message && !audio) {
     res.status(400);
-    throw new Error('Message content is required and must be a string.');
+    throw new Error('Message or audio content is required.');
   }
 
   try {
-    // Initialize or retrieve chat history for the user
-    if (!chatHistories.has(userId)) {
-      chatHistories.set(userId, []);
+    // Fetch or initialize chat history
+    let chat = await Chat.findOne({ userId });
+    if (!chat) {
+      chat = new Chat({ userId, messages: [] });
     }
-    const userChatHistory = chatHistories.get(userId);
+    const userChatHistory = chat.messages;
+
+    // Process message or audio
+    let textToProcess = message;
+    if (audio && isVoice) {
+      console.log('Audio received, size:', audio.size);
+      textToProcess = '[Audio transcription placeholder]';
+      // TODO: Integrate Google Speech-to-Text with SPEECH_ANALYSIS_API_KEY
+    }
+
+    if (!textToProcess) {
+      throw new Error('No text available for processing.');
+    }
 
     // Add user message to history
-    const userMessage = { role: 'user', parts: [{ text: message }] };
+    const userMessage = { role: 'user', parts: [{ text: textToProcess }] };
     userChatHistory.push(userMessage);
 
-    // Prepare Gemini API payload
+    // Prepare analysis for voice input
+    let analysis = null;
+    if (isVoice) {
+      // Grammar via LanguageTool
+      const grammarResult = await analyzeGrammar(textToProcess);
+
+      // Tone and tips via Gemini
+      const prompt = `Analyze this speech for tone and tips (do not analyze grammar, just tone and improvement tips). Return in format: Tone: [tone]\nTips:\n- [tip1]\n- [tip2]\n- [tip3]\nSpeech: "${textToProcess}"`;
+      userChatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+    }
+
+    // Gemini API payload
     const payload = {
       contents: userChatHistory,
       generationConfig: {
-        temperature: 0.7, // Balanced creativity
+        temperature: 0.7,
         topP: 0.95,
         topK: 40,
-        maxOutputTokens: 500 // Limit response length
+        maxOutputTokens: 500
       }
     };
 
-    const apiKey = process.env.GEMINI_API_KEY || ''; // Ensure set in environment
+    const apiKey = process.env.GEMINI_API_KEY || '';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     console.log(`Sending message to Gemini API for user ${userId}...`);
@@ -67,48 +110,50 @@ router.post('/message', protect, asyncHandler(async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Gemini API error response:', errorData);
-      throw new Error(`Gemini API call failed with status ${response.status}: ${JSON.stringify(errorData)}`);
+      console.error('Gemini API error:', errorData);
+      throw new Error(`Gemini API call failed with status ${response.status}`);
     }
 
     const result = await response.json();
-    console.log(`Received response from Gemini API for user ${userId}.`);
+    console.log(`Received response from Gemini API for user ${userId}:`, result);
 
     let botResponseText = 'Sorry, I could not generate a response.';
     if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
       botResponseText = result.candidates[0].content.parts[0].text;
-      // Add bot response to history
       userChatHistory.push({ role: 'model', parts: [{ text: botResponseText }] });
-      // Limit history to last 10 messages to prevent overflow
       if (userChatHistory.length > 10) {
         userChatHistory.splice(0, userChatHistory.length - 10);
       }
+      chat.messages = userChatHistory;
+      await chat.save();
     } else {
-      console.warn('Gemini API response structure unexpected:', result);
+      console.warn('Gemini API response unexpected:', result);
     }
 
-    // Handle voice input
+    // Finalize analysis for voice input
     if (isVoice) {
-      const analysis = simulateSpeechAnalysis(message);
+      const { tone, tips } = parseGeminiResponse(botResponseText);
+      analysis = {
+        grammar: grammarResult.score,
+        tone,
+        tips
+      };
+      console.log('Speech analysis result:', analysis);
       return res.status(200).json({
-        reply: {
-          text: botResponseText,
-          analysis
-        }
+        reply: { text: 'Here’s your speech analysis:', analysis }
       });
     }
 
-    // Handle text input
     res.status(200).json({ reply: botResponseText });
 
   } catch (error) {
-    console.error(`Error in chatbot API route for user ${userId}:`, error);
+    console.error(`Error in chatbot API for user ${userId}:`, error);
     if (error.message.includes('Gemini API call failed')) {
-      res.status(502).json({ message: 'Failed to connect to the language model. Please try again later.' });
+      res.status(502).json({ message: 'Failed to connect to the language model.' });
     } else if (isVoice) {
-      res.status(500).json({ message: 'Failed to analyze speech input. Please try again or type your message.' });
+      res.status(500).json({ message: 'Failed to analyze speech input.' });
     } else {
-      res.status(500).json({ message: 'Failed to get a response from the chatbot. Please try again later.' });
+      res.status(500).json({ message: 'Failed to get a chatbot response.' });
     }
   }
 }));
