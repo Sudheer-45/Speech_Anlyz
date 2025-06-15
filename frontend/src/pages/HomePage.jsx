@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import './HomePage.css';
@@ -11,7 +12,7 @@ function HomePage() {
         <div className="hero-section" data-tilt>
           <h1>Welcome to Comm Analyzer!</h1>
           <p>Your personal assistant for improving speech, grammar, and conversational skills.</p>
-          <a href="/signup" className="cta-button" data-tilt data-tilt-max="10">Get Started</a>
+          <Link to="/signup" className="about-signup-btn" data-tilt data-tilt-max="10">Get Started</Link>
         </div>
         <section className="overview-section" data-tilt>
           <div className="section-inner">
