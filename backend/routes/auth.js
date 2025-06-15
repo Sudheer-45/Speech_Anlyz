@@ -44,9 +44,9 @@ const sendWelcomeEmail = async (userEmail, userName) => {
                     <p>We're thrilled to have you as part of our community. Comm Analyzer is designed to empower you with insightful communication analysis tools.</p>
                     <p>Here are some things you can do to get started:</p>
                     <ul style="list-style-type: disc; margin-left: 20px;">
-                        <li>Explore your <a href="http://localhost:5173/dashboard" style="color: #0d6efd; text-decoration: none;">Dashboard</a></li>
-                        <li>Check out our <a href="http://localhost:5173/tutoring" style="color: #0d6efd; text-decoration: none;">Personal Development Hub</a></li>
-                        <li>Update your <a href="http://localhost:5173/profile" style="color: #0d6efd; text-decoration: none;">Profile</a></li>
+                        <li>Explore your <a href="https://commanalyzer.vercel.app/app/dashboard" style="color: #0d6efd; text-decoration: none;">Dashboard</a></li>
+                        <li>Check out our <a href="https://commanalyzer.vercel.app/app/tutor" style="color: #0d6efd; text-decoration: none;">Personal Development Hub</a></li>
+                        <li>Update your <a href="https://commanalyzer.vercel.app/app/profile" style="color: #0d6efd; text-decoration: none;">Profile</a></li>
                     </ul>
                     <p>If you have any questions or need support, feel free to contact us at <a href="mailto:${process.env.EMAIL_USER}" style="color: #0d6efd; text-decoration: none;">${process.env.EMAIL_USER}</a>.</p>
                     <p style="margin-top: 20px; text-align: center; color: #777;">Best regards,<br>The Comm Analyzer Team</p>
