@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import './Chatbot.css'; // New CSS file for better organization
+import './Chatbot.css';
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
 
@@ -10,8 +10,10 @@ function Chatbot({ isVisible, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState(null);
+  const [expandedAnalysis, setExpandedAnalysis] = useState({}); // Track expanded analysis cards
   const messagesEndRef = useRef(null);
   const chatbotRef = useRef(null);
+  const { recheckAuth } = useAuth(); // From AuthContext
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,6 +35,7 @@ function Chatbot({ isVisible, onClose }) {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
         setIsRecording(false);
+        handleSendMessage(new Event('submit'), true); // Auto-send after transcription
       };
       recog.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
@@ -57,6 +60,7 @@ function Chatbot({ isVisible, onClose }) {
       setMessages([]);
       setInput('');
       setIsLoading(false);
+      setExpandedAnalysis({});
       if (isRecording) {
         recognition?.stop();
         setIsRecording(false);
@@ -64,7 +68,7 @@ function Chatbot({ isVisible, onClose }) {
     }
   }, [isVisible, recognition]);
 
-  // Focus management for accessibility
+  // Focus management
   useEffect(() => {
     if (isVisible) {
       chatbotRef.current?.focus();
@@ -85,15 +89,14 @@ function Chatbot({ isVisible, onClose }) {
       if (!token) {
         setMessages((prev) => [...prev, { sender: 'bot', text: "Please log in to use the chatbot." }]);
         setIsLoading(false);
+        recheckAuth(); // Trigger re-auth check
         return;
       }
 
       const response = await axios.post(
         `${RENDER_BACKEND_URL}/api/chatbot/message`,
         { message: input.trim(), isVoice },
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
+        { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
       const { reply } = response.data;
@@ -105,9 +108,15 @@ function Chatbot({ isVisible, onClose }) {
       setMessages((prev) => [...prev, botResponse]);
 
     } catch (error) {
-      console.error('Error sending message to chatbot backend:', error);
-      const errorMessage = error.response?.data?.message || 'Sorry, I am having trouble connecting right now. Please try again later.';
+      console.error('Error sending message:', error);
+      const errorMessage = error.response?.status === 401
+        ? 'Session expired. Please log in again.'
+        : error.response?.data?.message || 'Sorry, I am having trouble connecting right now. Please try again later.';
       setMessages((prev) => [...prev, { sender: 'bot', text: errorMessage }]);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        recheckAuth();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -121,7 +130,6 @@ function Chatbot({ isVisible, onClose }) {
 
     if (isRecording) {
       recognition.stop();
-      setIsRecording(false);
     } else {
       try {
         recognition.start();
@@ -131,6 +139,10 @@ function Chatbot({ isVisible, onClose }) {
         setMessages((prev) => [...prev, { sender: 'bot', text: "Failed to start recording. Please try again or type your message." }]);
       }
     }
+  };
+
+  const toggleAnalysis = (index) => {
+    setExpandedAnalysis((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
   if (!isVisible) return null;
@@ -145,13 +157,7 @@ function Chatbot({ isVisible, onClose }) {
     >
       <div className="chatbot-header">
         <h2 className="chatbot-title">Comm Chatbot</h2>
-        <button
-          onClick={onClose}
-          className="chatbot-close"
-          aria-label="Close Chatbot"
-        >
-          ×
-        </button>
+        <button onClick={onClose} className="chatbot-close" aria-label="Close Chatbot">×</button>
       </div>
       <div className="chatbot-messages" aria-live="polite">
         {messages.map((msg, index) => (
@@ -159,16 +165,27 @@ function Chatbot({ isVisible, onClose }) {
             <span className="message-text">
               {msg.text}
               {msg.analysis && (
-                <div className="analysis-card">
-                  <h3>Speech Analysis</h3>
-                  {msg.analysis.grammar && <p><strong>Grammar Score:</strong> {msg.analysis.grammar}/100</p>}
-                  {msg.analysis.tone && <p><strong>Tone:</strong> {msg.analysis.tone}</p>}
-                  {msg.analysis.tips && (
-                    <div>
-                      <strong>Tips for Improvement:</strong>
-                      <ul>
-                        {msg.analysis.tips.map((tip, i) => <li key={i}>{tip}</li>)}
-                      </ul>
+                <div className="analysis-card-container">
+                  <button
+                    onClick={() => toggleAnalysis(index)}
+                    className="analysis-toggle"
+                    aria-label={expandedAnalysis[index] ? 'Collapse analysis' : 'Expand analysis'}
+                  >
+                    {expandedAnalysis[index] ? 'Hide Analysis' : 'Show Analysis'}
+                  </button>
+                  {expandedAnalysis[index] && (
+                    <div className="analysis-card">
+                      <h3>Speech Analysis</h3>
+                      {msg.analysis.grammar && <p><strong>Grammar Score:</strong> {msg.analysis.grammar}/100</p>}
+                      {msg.analysis.tone && <p><strong>Tone:</strong> {msg.analysis.tone}</p>}
+                      {msg.analysis.tips && (
+                        <div>
+                          <strong>Tips for Improvement:</strong>
+                          <ul>
+                            {msg.analysis.tips.map((tip, i) => <li key={i}>{tip}</li>)}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
