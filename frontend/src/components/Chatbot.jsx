@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext'; // Fix for useAuth error
 import './Chatbot.css';
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
@@ -10,11 +11,13 @@ function Chatbot({ isVisible, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState(null);
-  const [expandedAnalysis, setExpandedAnalysis] = useState({}); // Track expanded analysis cards
+  const [expandedAnalysis, setExpandedAnalysis] = useState({});
   const messagesEndRef = useRef(null);
   const chatbotRef = useRef(null);
-  const { recheckAuth } = useAuth(); // From AuthContext
+  const { recheckAuth } = useAuth(); // Access auth context
+  const recordingTimeoutRef = useRef(null); // Timeout for recording
 
+  // Auto-scroll to latest message
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -35,18 +38,27 @@ function Chatbot({ isVisible, onClose }) {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
         setIsRecording(false);
-        handleSendMessage(new Event('submit'), true); // Auto-send after transcription
+        clearTimeout(recordingTimeoutRef.current);
+        handleSendMessage(new Event('submit'), true); // Auto-send
       };
       recog.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         setMessages((prev) => [...prev, { sender: 'bot', text: `Speech recognition failed: ${event.error}. Please try again or type your message.` }]);
         setIsRecording(false);
+        clearTimeout(recordingTimeoutRef.current);
       };
       recog.onend = () => {
         setIsRecording(false);
+        clearTimeout(recordingTimeoutRef.current);
       };
       setRecognition(recog);
+    } else {
+      console.warn('Speech recognition not supported in this browser.');
     }
+    return () => {
+      recognition?.stop();
+      clearTimeout(recordingTimeoutRef.current);
+    };
   }, []);
 
   // Welcome message and cleanup
@@ -60,15 +72,14 @@ function Chatbot({ isVisible, onClose }) {
       setMessages([]);
       setInput('');
       setIsLoading(false);
+      setIsRecording(false);
       setExpandedAnalysis({});
-      if (isRecording) {
-        recognition?.stop();
-        setIsRecording(false);
-      }
+      recognition?.stop();
+      clearTimeout(recordingTimeoutRef.current);
     }
   }, [isVisible, recognition]);
 
-  // Focus management
+  // Focus management for accessibility
   useEffect(() => {
     if (isVisible) {
       chatbotRef.current?.focus();
@@ -88,8 +99,8 @@ function Chatbot({ isVisible, onClose }) {
       const token = localStorage.getItem('token');
       if (!token) {
         setMessages((prev) => [...prev, { sender: 'bot', text: "Please log in to use the chatbot." }]);
+        recheckAuth();
         setIsLoading(false);
-        recheckAuth(); // Trigger re-auth check
         return;
       }
 
@@ -130,13 +141,20 @@ function Chatbot({ isVisible, onClose }) {
 
     if (isRecording) {
       recognition.stop();
+      clearTimeout(recordingTimeoutRef.current);
     } else {
       try {
         recognition.start();
         setIsRecording(true);
+        // Set 10-second timeout to prevent infinite recording
+        recordingTimeoutRef.current = setTimeout(() => {
+          recognition.stop();
+          setMessages((prev) => [...prev, { sender: 'bot', text: "Recording timed out. Please try again or type your message." }]);
+        }, 10000);
       } catch (error) {
         console.error('Error starting speech recognition:', error);
         setMessages((prev) => [...prev, { sender: 'bot', text: "Failed to start recording. Please try again or type your message." }]);
+        setIsRecording(false);
       }
     }
   };
@@ -176,15 +194,25 @@ function Chatbot({ isVisible, onClose }) {
                   {expandedAnalysis[index] && (
                     <div className="analysis-card">
                       <h3>Speech Analysis</h3>
-                      {msg.analysis.grammar && <p><strong>Grammar Score:</strong> {msg.analysis.grammar}/100</p>}
-                      {msg.analysis.tone && <p><strong>Tone:</strong> {msg.analysis.tone}</p>}
-                      {msg.analysis.tips && (
+                      {msg.analysis.grammar !== undefined ? (
+                        <p><strong>Grammar Score:</strong> {msg.analysis.grammar}/100</p>
+                      ) : (
+                        <p><strong>Grammar:</strong> Not available</p>
+                      )}
+                      {msg.analysis.tone ? (
+                        <p><strong>Tone:</strong> {msg.analysis.tone}</p>
+                      ) : (
+                        <p><strong>Tone:</strong> Not detected</p>
+                      )}
+                      {msg.analysis.tips && msg.analysis.tips.length > 0 ? (
                         <div>
                           <strong>Tips for Improvement:</strong>
                           <ul>
                             {msg.analysis.tips.map((tip, i) => <li key={i}>{tip}</li>)}
                           </ul>
                         </div>
+                      ) : (
+                        <p><strong>Tips:</strong> No suggestions available</p>
                       )}
                     </div>
                   )}
@@ -195,7 +223,7 @@ function Chatbot({ isVisible, onClose }) {
         ))}
         {isLoading && (
           <div className="message message-bot">
-            <span className="message-text animate-pulse">Typing...</span>
+            <span className="message-text animate-pulse">Analyzing...</span>
           </div>
         )}
         {isRecording && (
