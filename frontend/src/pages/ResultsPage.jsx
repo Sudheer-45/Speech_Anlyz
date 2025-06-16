@@ -57,7 +57,8 @@ function ResultsPage() {
     // Loading and error states
     const [loading, setLoading] = useState(true); // Initial page load
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false); // For polling a single analysis
-    const [errorMessage, setErrorMessage] = useState(''); // <--- Ensure this line is present and correct!
+    const [error, setError] = useState(''); // <--- THIS LINE IS ADDED/CONFIRMED HERE!
+    const [errorMessage, setErrorMessage] = useState(''); // Specific error for current analysis view
     const [analysisStatusMessage, setAnalysisStatusMessage] = useState('');
 
     // Modal states
@@ -72,7 +73,7 @@ function ResultsPage() {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
-            setError('Please log in to view results.');
+            setError('Please log in to view results.'); // This will now work
             setLoading(false);
             return;
         }
@@ -100,7 +101,7 @@ function ResultsPage() {
                 URL.revokeObjectURL(videoUrlForCurrentView);
             }
         };
-    }, [location.state, navigate, videoUrlForCurrentView]); // Added videoUrlForCurrentView to dep array for cleanup safety
+    }, [location.state, navigate, videoUrlForCurrentView, pollForSpecificAnalysis]); // Added pollForSpecificAnalysis to deps
 
     const fetchAllAnalyses = async (token) => {
         setLoading(true); // Show full page spinner
@@ -113,7 +114,7 @@ function ResultsPage() {
             setResults(response.data);
             setLoading(false);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch analysis results.');
+            setError(err.response?.data?.message || 'Failed to fetch analysis results.'); // Using setError here
             setLoading(false);
             console.error('Fetch All Results Error:', err);
         }
@@ -178,7 +179,7 @@ function ResultsPage() {
         }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(intervalId); // Cleanup on component unmount
-    }, [navigate, setErrorMessage]); // Include setErrorMessage in useCallback dependencies if it's not stable (though it should be)
+    }, [navigate, setErrorMessage, setError, fetchAllAnalyses]); // Added setError and fetchAllAnalyses to useCallback dependencies
 
 
     const handleDeleteClick = (analysis) => {
