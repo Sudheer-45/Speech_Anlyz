@@ -1,5 +1,6 @@
 // backend/routes/video.js
-// This file configures Multer to upload video files directly to Cloudinary.
+// This file configures Multer to upload video files directly to Cloudinary,
+// ensuring video persistence.
 
 const express = require('express');
 const router = express.Router();
@@ -10,6 +11,7 @@ const { uploadVideo, getUserVideos } = require('../controllers/videoController')
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
+
 // No longer need fs or path imports here as local storage is removed
 // const fs = require('fs');
 // const path = require('path');
@@ -33,6 +35,7 @@ const cloudinaryVideoStorage = new CloudinaryStorage({
         // Generate a unique public ID for the video, including user ID and timestamp
         public_id: (req, file) => `video-${req.user ? req.user._id : 'guest'}-${Date.now()}`, 
         // Optional: Apply video transformations here if desired (e.g., optimize for streaming)
+        // For example, to set a max width/height or optimize codec:
         // transformation: [{ width: 1280, height: 720, crop: "limit", video_codec: "auto" }]
     },
     // Optional: Add a chunk_size for very large video files (e.g., 6MB)
@@ -42,7 +45,7 @@ const cloudinaryVideoStorage = new CloudinaryStorage({
 
 // Create a Multer upload instance using CloudinaryStorage for videos
 const videoUpload = multer({
-    storage: cloudinaryVideoStorage,
+    storage: cloudinaryVideoStorage, // <--- CORRECTED: Using CloudinaryStorage
     limits: { fileSize: 200 * 1024 * 1024 }, // Set a larger file size limit for videos (e.g., 200 MB)
     fileFilter: (req, file, cb) => { // Filter to allow only video files
         const allowedMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']; 
