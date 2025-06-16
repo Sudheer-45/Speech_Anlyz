@@ -2,53 +2,56 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const path = require('path'); // Ensure path is imported
+const path = require('path'); 
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 // Load env vars
-dotenv.config(); // This loads variables from your .env file
+dotenv.config(); 
 
 // Connect to database
 connectDB();
 
 const app = express();
 
-// CORS middleware - CRUCIAL FIX HERE
+// CORS middleware
 app.use(cors({
-    origin: process.env.CORS_ORIGIN, // <--- CHANGE THIS LINE to read from environment variable
+    origin: process.env.CORS_ORIGIN, 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
 }));
 
 // Body parser for JSON data
 app.use(express.json());
-// Body parser for URL-encoded data (often needed for forms)
+// Body parser for URL-encoded data
 app.use(express.urlencoded({ extended: false }));
 
-// Serve static uploaded files (videos)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // This line is crucial for video playback
+// Serve static uploaded VIDEO files (if you are still storing videos locally)
+// If you move videos to Cloudinary later, this line would also be removed.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
 
-// NEW: Serve static uploaded profile images
-app.use('/uploads/profile-images', express.static(path.join(__dirname, 'uploads', 'profile-images')));
+// REMOVED: Serving static uploaded profile images, as they're now on Cloudinary
+// app.use('/uploads/profile-images', express.static(path.join(__dirname, 'uploads', 'profile-images'))); 
+
 
 // Rate limiting middleware setup
 const rateLimit = require('express-rate-limit');
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10 // 10 requests per window
+    windowMs: 15 * 60 * 1000, 
+    max: 10 
 });
 
 // Apply rate limiting to specific routes
-app.use('/api/feedback', limiter); // Apply limiter middleware
-app.use('/api/feedback', require('./routes/feedbackRoutes')); // Then apply the route handler
+app.use('/api/feedback', limiter); 
+app.use('/api/feedback', require('./routes/feedbackRoutes')); 
 
 // Routes
-app.use('/api/auth', require('./routes/auth')); // This correctly points to your auth routes
+app.use('/api/auth', require('./routes/auth')); 
 app.use('/api', require('./routes/video'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/analysis', require('./routes/analysisRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
+
 
 // Basic route for testing
 app.get('/', (req, res) => {
