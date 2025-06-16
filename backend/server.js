@@ -1,4 +1,7 @@
 // backend/server.js
+// This file has a minor change related to Cloudinary:
+// The line serving static '/uploads/profile-images' is removed.
+
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -31,7 +34,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
 
 // REMOVED: Serving static uploaded profile images, as they're now on Cloudinary
-// app.use('/uploads/profile-images', express.static(path.join(__dirname, 'uploads', 'profile-images'))); 
+// (The line 'app.use('/uploads/profile-images', express.static(path.join(__dirname, 'uploads', 'profile-images')));'
+// should be removed if it exists in your original server.js)
 
 
 // Rate limiting middleware setup
