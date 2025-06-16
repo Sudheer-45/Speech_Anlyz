@@ -1,47 +1,65 @@
 // backend/models/Analysis.js
 const mongoose = require('mongoose');
 
-const AnalysisSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Reference to your User model
-    required: true,
-  },
-  videoUrl: {
-    type: String, // URL of the uploaded video
-    required: true,
-  },
-  videoPath: { // Local path if stored on server, for deletion purposes
-    type: String,
-    required: true,
-  },
-  videoName: {
-    type: String,
-    default: 'Untitled Analysis',
-  },
-  date: {
-    type: Date,
-    default: Date.now,
-  },
-  overallScore: {
-    type: Number,
-    min: 0,
-    max: 100,
-  },
-  grammarErrors: [
-    {
-      message: String,
-      text: String, // The problematic text snippet
-      // Add more details like start/end time, suggestions if your AI provides
+const AnalysisSchema = mongoose.Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+        ref: 'User',
     },
-  ],
-  fillerWords: [String], // Array of detected filler words
-  speakingRate: Number, // Words per minute
-  fluencyFeedback: String, // General text feedback on fluency
-  sentiment: String, // e.g., 'Positive', 'Neutral', 'Negative'
-  // Add other analysis metrics as needed
-  // pronunciationScore: Number,
-  // vocabularySuggestions: String,
+    videoUrl: {
+        type: String, // URL of the video (will be broken if video not on persistent storage)
+        required: true,
+    },
+    videoPath: { // Local path (temporary on Render) or reference for future cloud storage
+        type: String,
+        required: false,
+    },
+    videoName: {
+        type: String,
+        required: true,
+    },
+    date: {
+        type: Date,
+        default: Date.now,
+    },
+    transcription: { // Full transcribed text from STT
+        type: String,
+        required: false,
+    },
+    overallScore: { // From Gemini analysis
+        type: Number,
+        required: false,
+    },
+    grammarErrors: [ // From LanguageTool
+        {
+            message: { type: String },
+            text: { type: String }, 
+            offset: { type: Number }, 
+            length: { type: Number }, 
+            replacements: [{ type: String }], 
+        },
+    ],
+    fillerWords: [{ // From Gemini analysis
+        type: String, 
+    }],
+    speakingRate: { // From Gemini analysis
+        type: Number, 
+        required: false,
+    },
+    fluencyFeedback: { // From Gemini analysis
+        type: String,
+        required: false,
+    },
+    sentiment: { // From Gemini analysis
+        type: String, // e.g., "Positive", "Negative", "Neutral"
+        required: false,
+    },
+    areasForImprovement: [{ // Specific tips from Gemini LLM
+        type: String,
+    }],
+}, {
+    timestamps: true, // Adds createdAt and updatedAt fields
 });
 
 module.exports = mongoose.model('Analysis', AnalysisSchema);
