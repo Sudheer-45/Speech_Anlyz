@@ -249,14 +249,6 @@ function EditProfilePage() {
                             style={{ display: 'none' }} // Hide the default file input
                         />
                         {/* Custom styled button to trigger file input */}
-                        <button
-                            type="button"
-                            className="upload-button" // Apply custom styling to this button
-                            onClick={() => document.getElementById('profileImage').click()}
-                            disabled={isLoading}
-                        >
-                            Choose Image
-                        </button>
                         {/* File name display for selected file */}
                         {profileImageFile && <span className="file-name">{profileImageFile.name}</span>}
                         {/* Image Preview */}
@@ -277,7 +269,14 @@ function EditProfilePage() {
                             <div className="no-image-placeholder">No image selected</div>
                         )}
                     </div>
-                    
+                     <button
+                            type="button"
+                            className="upload-button" // Apply custom styling to this button
+                            onClick={() => document.getElementById('profileImage').click()}
+                            disabled={isLoading}
+                        >
+                            Choose Image
+                        </button>
                     <div className="form-group">
                         <label htmlFor="username">Username:</label>
                         <input
