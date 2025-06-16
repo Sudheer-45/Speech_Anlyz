@@ -14,9 +14,9 @@ function EditProfilePage() {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [bio, setBio] = useState('');
-    // State for the File object selected by user for upload
-    const [profileImageFile, setProfileImageFile] = useState(null);
-    // State for the URL to display the image preview (local Blob URL or fetched Cloudinary URL)
+    // State for the File object selected by user
+    const [profileImageFile, setProfileImageFile] = useState(null); // Correct state variable name
+    // State for the URL to display the image preview (local Blob URL or fetched URL)
     const [profileImagePreview, setProfileImagePreview] = useState(null);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,7 +27,7 @@ function EditProfilePage() {
     const [isLoading, setIsLoading] = useState(true); // Used for initial load and form submission
 
     const navigate = useNavigate();
-    const { recheckAuth } = useAuth(); // Assuming recheckAuth updates user context/local storage
+    const { recheckAuth } = useAuth();
 
     // Effect to fetch current user profile data when the component mounts
     useEffect(() => {
@@ -71,20 +71,19 @@ function EditProfilePage() {
         fetchUserProfile();
 
         // Cleanup function for object URLs to prevent memory leaks
-        // This will run when the component unmounts or before the effect re-runs
         return () => {
             if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
                 URL.revokeObjectURL(profileImagePreview);
-                console.log("DEBUG: Revoked object URL:", profileImagePreview); // Log cleanup
+                console.log("DEBUG: Revoked object URL:", profileImagePreview);
             }
         };
-    }, [navigate]); // Added navigate to dependency array for best practice
+    }, [navigate]);
 
     // Handler for file input change
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setProfileImageFile(file);
+            setProfileImageFile(file); // Correct setter used
 
             // Clean up the previous object URL if it exists to avoid memory leaks
             if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
@@ -98,15 +97,11 @@ function EditProfilePage() {
             console.log("DEBUG: Profile image preview updated to NEW BLOB URL:", newPreviewUrl);
 
         } else {
-            setProfileImageFile(null);
+            setProfileImageFile(null); // Correct setter used
             // If no file is selected, clear the preview.
-            // A more complex logic might revert to the original fetched image if it exists.
             if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
-                URL.revokeObjectURL(profileImagePreview); // Revoke the current object URL
+                URL.revokeObjectURL(profileImagePreview);
             }
-            // IMPORTANT: If user clears the file input, and there was an old Cloudinary URL,
-            // we should set profileImagePreview back to the original fetched URL or null
-            // if they want to explicitly remove it. For now, setting to null.
             setProfileImagePreview(null); 
             console.log("DEBUG: No file selected, profile image preview cleared.");
         }
@@ -126,7 +121,6 @@ function EditProfilePage() {
             return;
         }
 
-        // Initialize with the current profile image URL from state (could be fetched or a local blob)
         let finalProfilePictureUrl = profileImagePreview; 
 
         try {
@@ -141,34 +135,26 @@ function EditProfilePage() {
             // --- STEP 1: Upload new profile image to Cloudinary if selected ---
             if (profileImageFile) {
                 const formData = new FormData();
-                formData.append('profileImage', profileImageFile); // 'profileImage' must match backend's Multer field name
+                formData.append('profileImage', profileImageFile); 
 
                 setMessage('Uploading image...');
                 const uploadResponse = await axios.post(`${RENDER_BACKEND_URL}/api/upload/profile-image`, formData, {
                     headers: {
-                        'Content-Type': 'multipart/form-data', // Crucial for file uploads
+                        'Content-Type': 'multipart/form-data',
                         'Authorization': `Bearer ${token}`
                     },
                 });
-                finalProfilePictureUrl = uploadResponse.data.imageUrl; // Get the Cloudinary URL from the response
+                finalProfilePictureUrl = uploadResponse.data.imageUrl; 
                 console.log("DEBUG: Image uploaded to backend, received Cloudinary URL:", finalProfilePictureUrl);
-                setSelectedFile(null); // Clear the selected file after successful upload
+                setProfileImageFile(null); // <--- FIXED: Use setProfileImageFile here
             }
             // --- END STEP 1 ---
-
-            // --- STEP 2: Update user profile with new (or existing) profilePictureUrl ---
-            // If `profileImageFile` was NOT selected, `finalProfilePictureUrl` will retain
-            // the value it had before this block (either the original fetched URL or null).
-            // If user explicitly wants to clear image, set profileImagePreview to null via button/logic
-            // and `finalProfilePictureUrl` will become null.
             
             setMessage('Updating profile...');
             const updateData = {
                 username,
                 email,
                 bio,
-                // Send the Cloudinary URL (if new image uploaded),
-                // or the existing Cloudinary URL, or null if cleared.
                 profilePictureUrl: finalProfilePictureUrl 
             };
             if (password) {
@@ -189,10 +175,8 @@ function EditProfilePage() {
             setPassword('');
             setConfirmPassword('');
 
-            // After successful update, recheck auth to update user context with new profilePictureUrl
             recheckAuth(); 
 
-            // Navigate back to profile page after a short delay
             setTimeout(() => {
                 navigate('/app/profile');
             }, 1500);
@@ -243,40 +227,37 @@ function EditProfilePage() {
                         <input
                             type="file"
                             id="profileImage"
-                            accept="image/*" // Only accept image files
+                            accept="image/*"
                             onChange={handleFileChange}
                             disabled={isLoading}
-                            style={{ display: 'none' }} // Hide the default file input
+                            style={{ display: 'none' }}
                         />
-                        {/* Custom styled button to trigger file input */}
-                        {/* File name display for selected file */}
-                        {profileImageFile && <span className="file-name">{profileImageFile.name}</span>}
-                        {/* Image Preview */}
                         {profileImagePreview && (
                             <div className="profile-picture-preview">
                                 <img
                                     src={profileImagePreview}
                                     alt="Profile Preview"
-                                    onError={(e) => { // Hide image if URL is broken
+                                    onError={(e) => {
                                         e.target.style.display = 'none';
-                                        e.target.onerror = null; // Prevent infinite loop
+                                        e.target.onerror = null;
                                     }}
                                 />
                             </div>
                         )}
-                        {/* Placeholder when no image is selected or available */}
                         {!profileImagePreview && !profileImageFile && (
                             <div className="no-image-placeholder">No image selected</div>
                         )}
-                    </div>
-                     <button
+                        {profileImageFile && <span className="file-name">{profileImageFile.name}</span>}
+                        <button
                             type="button"
-                            className="upload-button" // Apply custom styling to this button
+                            className="upload-button"
                             onClick={() => document.getElementById('profileImage').click()}
                             disabled={isLoading}
                         >
                             Choose Image
                         </button>
+                    </div>
+                    
                     <div className="form-group">
                         <label htmlFor="username">Username:</label>
                         <input
