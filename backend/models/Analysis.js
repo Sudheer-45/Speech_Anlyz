@@ -8,10 +8,10 @@ const AnalysisSchema = mongoose.Schema({
         ref: 'User',
     },
     videoUrl: {
-        type: String, // URL of the video (will be broken if video not on persistent storage)
+        type: String, // URL of the video (now the persistent Cloudinary URL)
         required: true,
     },
-    videoPath: { // Local path (temporary on Render) or reference for future cloud storage
+    videoPath: { // This field can now also store the Cloudinary URL for consistency, or be removed if purely for local path
         type: String,
         required: false,
     },
