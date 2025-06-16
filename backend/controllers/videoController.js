@@ -2,7 +2,9 @@
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-// Removed fs and path imports as local file operations are no longer needed for videos
+// fs and path are not needed here anymore as local video files are no longer handled after upload
+// const fs = require('fs'); 
+// const path = require('path'); 
 
 // AssemblyAI setup
 const { AssemblyAI } = require('assemblyai');
@@ -54,9 +56,11 @@ const transcribeAudio = async (videoUrl) => { // Now accepts a URL
     try {
         console.log(`Sending video URL for transcription via AssemblyAI: ${videoUrl}`);
         
-        // --- CRITICAL FIX: Use audio_url for remote URLs ---
+        // --- CRITICAL FIX: Ensure 'audio_url' is used for remote URLs ---
+        // The AssemblyAI SDK expects 'audio_url' when you provide a public HTTP(S) URL.
+        // If you were passing 'audio: videoUrl' before, that's incorrect for URLs.
         const transcript = await assemblyAIClient.transcripts.transcribe({
-            audio_url: videoUrl, // <--- CHANGED: Use audio_url for remote URLs when providing a URL
+            audio_url: videoUrl, // <--- THIS IS THE CRITICAL CHANGE: MUST BE audio_url
             punctuation: true,
             formatText: true,
             // Add more features like speaker_diarization if needed for your analysis
