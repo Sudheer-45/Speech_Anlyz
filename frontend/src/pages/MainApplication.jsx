@@ -5,7 +5,7 @@ import Footer from '../components/Footer';
 import axios from 'axios';
 import Webcam from 'react-webcam'; 
 import './MainApplication.css'; 
-import Chatbot from '../components/Chatbot'; 
+ 
 
 const videoConstraints = {
     width: 1280,
@@ -402,13 +402,6 @@ function MainApplication() {
                         </section>
                     </div>
                 </div>
-
-                {/* NEW CHATBOT SECTION */}
-                <section className="chatbot-section mt-10 p-5 bg-gray-50 rounded-lg shadow-lg" data-tilt data-tilt-max="10">
-                    <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-6">Need Communication Advice? Ask our AI Chatbot!</h2>
-                    <Chatbot /> {/* RENDER THE CHATBOT COMPONENT HERE */}
-                </section>
-
             </main>
             <Footer />
         </div>
