@@ -1,22 +1,27 @@
 // backend/routes/uploadRoutes.js
+// This route is now specifically for uploading profile images to Cloudinary.
+
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware'); // Assuming your authMiddleware is here
-const upload = require('../middleware/uploadMiddleware'); // Your multer upload middleware
+const { protect } = require('../middleware/authMiddleware'); // Middleware to ensure user is authenticated
+const upload = require('../middleware/uploadMiddleware'); // Your updated Multer upload middleware (Cloudinary-enabled)
 
-// @desc    Upload profile image
+// @desc    Upload profile image to Cloudinary
 // @route   POST /api/upload/profile-image
-// @access  Private
+// @access  Private (requires authentication)
 router.post('/profile-image', protect, upload.single('profileImage'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded.' });
-  }
+    // Check if a file was successfully uploaded by Multer
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
 
-  // Construct the URL where the image can be accessed
-  // This assumes your static files are served from /uploads/profile-images/
- const imageUrl = `https://comm-analyzer.onrender.com/${req.file.path.replace(/\\/g, '/')}`;
-  console.log('Image uploaded successfully. Returned URL:', imageUrl); // Add this log
-  res.json({ message: 'Image uploaded successfully', imageUrl: imageUrl });
+    // When using multer-storage-cloudinary, req.file.path directly contains the secure URL
+    // of the uploaded image on Cloudinary.
+    const imageUrl = req.file.path; 
+    console.log('Image uploaded successfully to Cloudinary. Returned URL:', imageUrl); 
+    
+    // Send back a success message and the Cloudinary URL to the frontend
+    res.json({ message: 'Image uploaded successfully', imageUrl: imageUrl });
 });
 
 module.exports = router;
