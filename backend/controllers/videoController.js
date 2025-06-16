@@ -2,8 +2,9 @@
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-const fs = require('fs');
-const path = require('path');
+// Removed fs and path imports as local file operations are no longer needed for videos
+// const fs = require('fs');
+// const path = require('path');
 
 // AssemblyAI setup
 const { AssemblyAI } = require('assemblyai');
@@ -45,22 +46,23 @@ const analyzeGrammar = async (text) => {
     }
 };
 
-// Function to transcribe audio from a file path using AssemblyAI
-const transcribeAudio = async (filePath) => {
+// Function to transcribe audio from a VIDEO URL using AssemblyAI
+const transcribeAudio = async (videoUrl) => { // Now accepts a URL
     if (!assemblyAIClient) {
         console.error('AssemblyAI client not initialized. Cannot transcribe.');
         return '[Transcription Failed: AssemblyAI client not ready]';
     }
 
     try {
-        console.log(`Sending audio for transcription via AssemblyAI: ${filePath}`);
-        // AssemblyAI SDK can directly read the local file path
+        console.log(`Sending video URL for transcription via AssemblyAI: ${videoUrl}`);
+        // AssemblyAI SDK can directly transcribe from a public URL
         const transcript = await assemblyAIClient.transcripts.transcribe({
-            audio: filePath, 
+            audio: videoUrl, // Pass the Cloudinary URL directly
             punctuation: true,
             formatText: true,
-            // You can add more features here based on AssemblyAI capabilities if needed
-            // e.g., speaker_diarization: true, sentiment_analysis: true
+            // Add more features like speaker_diarization if needed for your analysis
+            // speaker_diarization: true,
+            // sentiment_analysis: true,
         });
 
         if (transcript.status === 'completed') {
@@ -78,7 +80,7 @@ const transcribeAudio = async (filePath) => {
     }
 };
 
-// Function to analyze speech properties using Gemini API
+// Function to analyze speech properties using Gemini API (unchanged)
 const analyzeSpeechWithGemini = async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
@@ -99,12 +101,12 @@ const analyzeSpeechWithGemini = async (transcription) => {
     
     JSON Schema:
     {
-      "overallScore": number, // On a scale of 0-100, reflecting overall communication effectiveness. Higher is better.
-      "fillerWords": string[], // List common filler words detected (e.g., "um", "uh", "like", "you know").
-      "speakingRate": number, // Estimated words per minute.
-      "fluencyFeedback": string, // Concise feedback on flow and smoothness.
-      "sentiment": "Positive" | "Negative" | "Neutral", // Overall sentiment expressed.
-      "areasForImprovement": string[] // 2-3 specific areas for improvement (e.g., "reduce pauses", "vary pitch").
+      "overallScore": number, 
+      "fillerWords": string[], 
+      "speakingRate": number, 
+      "fluencyFeedback": string, 
+      "sentiment": "Positive" | "Negative" | "Neutral", 
+      "areasForImprovement": string[] 
     }
 
     Speech Transcription: "${transcription}"`;
@@ -175,10 +177,9 @@ const analyzeSpeechWithGemini = async (transcription) => {
 // @route   POST /api/upload (Note: This is your general video upload route)
 // @access  Private
 const uploadVideo = asyncHandler(async (req, res) => {
-    // This controller assumes Multer has already saved the video file locally
-    // to a temporary location, and req.file.path points to that local file.
-    // IMPORTANT: Local video files are ephemeral on Render. They will be deleted on redeploy/restart.
-    // For persistent video storage, you'd need to integrate Cloudinary or AWS S3 for videos too.
+    // Multer (configured with CloudinaryStorage in routes/video.js)
+    // will have uploaded the video to Cloudinary.
+    // req.file.path contains the secure URL from Cloudinary.
 
     if (!req.file) {
         res.status(400);
@@ -186,28 +187,25 @@ const uploadVideo = asyncHandler(async (req, res) => {
     }
 
     const { videoName } = req.body;
-    const { originalname, filename, path: filePath } = req.file; // filePath is local path
+    // Extract the Cloudinary URL from req.file.path (renamed for clarity)
+    const { originalname, path: videoCloudinaryUrl } = req.file; 
     const userId = req.user._id;
 
-    // The videoUrl for playback will be broken if the local file is deleted.
-    // For full functionality, video playback needs persistent storage like Cloudinary for videos.
-    const videoUrl = `/uploads/${filename}`; // Assuming your server serves /uploads statically
-
+    // Use the Cloudinary URL as the persistent video URL
+    const videoUrl = videoCloudinaryUrl; 
 
     let newVideoRecord;
     try {
         newVideoRecord = await Video.create({
             userId,
             filename: originalname,
-            filePath: filePath.replace(/\\/g, '/'), // This path is local, not persistent
+            videoUrl: videoUrl, // Store the Cloudinary URL for playback
+            filePath: videoUrl, // Store the Cloudinary URL here too for consistency with previous schema (if desired)
             status: 'uploaded',
         });
     } catch (dbError) {
         console.error('Error saving raw video record to DB:', dbError);
-        // Clean up locally stored file on DB error
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path); 
-        }
+        // No local file to clean up here, as it's uploaded directly to Cloudinary
         res.status(500);
         throw new Error('Server error: Could not record video upload.');
     }
@@ -216,18 +214,18 @@ const uploadVideo = asyncHandler(async (req, res) => {
     res.status(202).json({
         message: 'Video uploaded successfully. Analysis in progress.',
         videoRecordId: newVideoRecord ? newVideoRecord._id : null,
+        videoUrl: videoUrl, // Optionally send the Cloudinary URL back to frontend for immediate use
     });
 
     // --- ASYNCHRONOUS ANALYSIS START ---
     // This part runs in the background after sending the initial response
     try {
-        console.log(`Starting real analysis for video: ${filename}`);
+        console.log(`Starting real analysis for video: ${originalname} from URL: ${videoUrl}`);
 
-        // 1. Transcribe audio from the uploaded video file using AssemblyAI
-        const transcription = await transcribeAudio(filePath);
-        // Check if transcription failed and handle it
+        // 1. Transcribe audio from the uploaded VIDEO URL using AssemblyAI
+        const transcription = await transcribeAudio(videoUrl); // Pass the Cloudinary URL directly
         if (transcription.startsWith('[Transcription Failed')) {
-            throw new Error(transcription); // Re-throw to catch block
+            throw new Error(transcription); 
         }
         console.log('Completed transcription:', transcription.substring(0, Math.min(transcription.length, 100)) + '...'); 
 
@@ -242,9 +240,8 @@ const uploadVideo = asyncHandler(async (req, res) => {
         // Combine all analysis results and save to Analysis model
         const newAnalysis = await Analysis.create({
             userId: userId,
-            // IMPORTANT: If you move video files to Cloudinary, update videoUrl here
-            videoUrl: videoUrl, // This URL will be broken after server restart if video is not persistently stored
-            videoPath: filePath.replace(/\\/g, '/'), 
+            videoUrl: videoUrl, // This is now the persistent Cloudinary URL
+            videoPath: videoUrl, // Consistent with videoUrl for persistence
             videoName: videoName || originalname,
             date: new Date(),
             transcription: transcription, 
@@ -266,32 +263,22 @@ const uploadVideo = asyncHandler(async (req, res) => {
         // Update the Video record with analysis status and ID
         if (newVideoRecord) {
             newVideoRecord.status = 'analyzed';
-            newVideoRecord.analysisId = newAnalysis._id;
+            newVideoRecord.analysisId = newAnalysis._id; // Store reference to Analysis
             await newVideoRecord.save();
         }
 
         console.log(`Analysis complete and saved for video: ${videoName || originalname}. Analysis ID: ${newAnalysis._id}`);
 
-        // Clean up the local video file after analysis (CRITICAL for Render's ephemeral storage)
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            console.log(`Cleaned up local video file: ${filePath}`);
-        }
-
+        // No local file cleanup needed here as videos are directly uploaded to Cloudinary
     } catch (analysisError) {
         console.error(`Error analyzing or saving analysis for video ${originalname}:`, analysisError);
         // Update video status to failed if analysis fails
         if (newVideoRecord) {
             newVideoRecord.status = 'failed';
-            // Also store the error message for debugging/display in the UI
             newVideoRecord.errorMessage = analysisError.message; 
             await newVideoRecord.save();
         }
-        // Clean up local file even on analysis error
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            console.log(`Cleaned up local video file after analysis error: ${filePath}`);
-        }
+        // No local file cleanup needed here
     }
 });
 
@@ -299,6 +286,8 @@ const uploadVideo = asyncHandler(async (req, res) => {
 // @route   GET /api/user/videos
 // @access  Private
 const getUserVideos = asyncHandler(async (req, res) => {
+    // This route remains the same as it fetches from the database.
+    // The videoUrl in the returned objects will now be the persistent Cloudinary URL.
     const videos = await Video.find({ userId: req.user._id }).sort({ uploadDate: -1 });
     res.status(200).json({ videos });
 });
