@@ -49,7 +49,6 @@ app.use('/api', require('./routes/video'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/analysis', require('./routes/analysisRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
-app.use('/api/chatbot', require('./routes/chatbot'));
 
 // Basic route for testing
 app.get('/', (req, res) => {
