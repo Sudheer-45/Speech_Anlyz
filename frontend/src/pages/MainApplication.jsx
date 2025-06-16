@@ -5,7 +5,6 @@ import Footer from '../components/Footer';
 import axios from 'axios';
 import Webcam from 'react-webcam'; 
 import './MainApplication.css'; 
- 
 
 const videoConstraints = {
     width: 1280,
@@ -63,7 +62,6 @@ function MainApplication() {
                 throw new Error('User not authenticated. Please log in.');
             }
 
-            // Using the constant RENDER_BACKEND_URL here
             const uploadResponse = await axios.post(`${RENDER_BACKEND_URL}/api/upload`, formData, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -74,7 +72,10 @@ function MainApplication() {
                 }
             });
 
-            setMessage(uploadResponse.data.message || 'Video uploaded successfully. Analysis in progress.');
+            // --- CRITICAL FIX: Extract videoRecordId and videoUrl from response ---
+            const { videoRecordId, videoUrl, message: responseMessage } = uploadResponse.data;
+            
+            setMessage(responseMessage || 'Video uploaded successfully. Analysis in progress.');
             setUploadedFile(null);
             setRecordedVideoBlob(null);
             if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
@@ -83,7 +84,9 @@ function MainApplication() {
             setShowRecordedControls(false);
             setVideoName('');
 
-            navigate('/app/results');
+            // --- CRITICAL FIX: Pass videoRecordId and videoUrl via navigation state ---
+            navigate('/app/results', { state: { videoRecordId, videoUrl, videoName: nameForVideo || fileToUpload.name } });
+
         } catch (error) {
             const errorMessage = error.response?.data?.message || error.message || 'Video upload failed. Please try again.';
             setMessage(errorMessage);
