@@ -56,7 +56,7 @@ const transcribeAudio = async (videoUrl) => { // Now accepts a URL
         
         // --- CRITICAL FIX: Use audio_url for remote URLs ---
         const transcript = await assemblyAIClient.transcripts.transcribe({
-            audio_url: videoUrl, // <--- CHANGED: Use audio_url for remote URLs
+            audio_url: videoUrl, // <--- CHANGED: Use audio_url for remote URLs when providing a URL
             punctuation: true,
             formatText: true,
             // Add more features like speaker_diarization if needed for your analysis
