@@ -298,12 +298,7 @@ function MainApplication() {
                         Whether you're preparing for an important interview, practicing a presentation, or just aiming for better fluency,
                         our intelligent analyzer offers insights into your grammar, filler words, speaking rate, and overall sentiment.
                     </p>
-                    <p>
-                        Simply upload a video of yourself speaking or record one directly using your webcam. You can even name your videos
-                        to easily categorize your practice sessions (e.g., "Mock Interview - Google", "Presentation Rehearsal").
-                        After analysis, you'll receive a comprehensive report that highlights areas for improvement, helping you speak
-                        with more confidence and clarity.
-                    </p>
+
                 </div>
 
                 <div className="video-input-options">
