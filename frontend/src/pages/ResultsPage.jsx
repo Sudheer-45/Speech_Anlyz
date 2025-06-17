@@ -55,9 +55,10 @@ function ResultsPage() {
     const [videoNameForCurrentView, setVideoNameForCurrentView] = useState(null);
 
     // Loading and error states
+    // THIS LINE IS ABSOLUTELY ESSENTIAL for 'setError' to be defined and must be present.
+    const [error, setError] = useState(''); 
     const [loading, setLoading] = useState(true); // Initial page load
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false); // For polling a single analysis
-    const [error, setError] = useState(''); // <--- THIS LINE IS ADDED/CONFIRMED HERE!
     const [errorMessage, setErrorMessage] = useState(''); // Specific error for current analysis view
     const [analysisStatusMessage, setAnalysisStatusMessage] = useState('');
 
@@ -73,7 +74,8 @@ function ResultsPage() {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
-            setError('Please log in to view results.'); // This will now work
+            // This setError call *must* be defined by the useState hook above
+            setError('Please log in to view results.'); 
             setLoading(false);
             return;
         }
@@ -88,10 +90,12 @@ function ResultsPage() {
             setCurrentAnalysisView(null); // Clear previous view if any
             setLoading(false); // Page itself loaded
             setAnalysisStatusMessage('Starting analysis for your video...'); // Initial status message
+            // Use useCallback wrapped function here
             pollForSpecificAnalysis(videoRecordId, token);
         } else {
             // Scenario 2: Direct access or refresh, fetch all previous analyses
             console.log('ResultsPage: Direct access or refresh, fetching all analyses.');
+            // Use useCallback wrapped function here
             fetchAllAnalyses(token);
         }
 
@@ -101,9 +105,10 @@ function ResultsPage() {
                 URL.revokeObjectURL(videoUrlForCurrentView);
             }
         };
-    }, [location.state, navigate, videoUrlForCurrentView, pollForSpecificAnalysis]); // Added pollForSpecificAnalysis to deps
+    }, [location.state, navigate, videoUrlForCurrentView, pollForSpecificAnalysis, fetchAllAnalyses]); // Added fetchAllAnalyses to deps
 
-    const fetchAllAnalyses = async (token) => {
+    // fetchAllAnalyses wrapped in useCallback to ensure stable reference
+    const fetchAllAnalyses = useCallback(async (token) => {
         setLoading(true); // Show full page spinner
         setError(''); // Clear general error
         setErrorMessage(''); // Clear specific error message
@@ -118,8 +123,9 @@ function ResultsPage() {
             setLoading(false);
             console.error('Fetch All Results Error:', err);
         }
-    };
+    }, [setError, setErrorMessage, setLoading, setResults]); // Dependencies for useCallback
 
+    // pollForSpecificAnalysis wrapped in useCallback to ensure stable reference
     const pollForSpecificAnalysis = useCallback(async (recordId, token) => {
         setIsLoadingAnalysis(true); // Show analysis-specific loading
         setAnalysisStatusMessage('Analysis in progress...');
@@ -129,8 +135,6 @@ function ResultsPage() {
         const intervalId = setInterval(async () => {
             try {
                 // First, fetch the Video record to check its status
-                // We need a way to get a single video's status, or filter from all videos
-                // For simplicity, let's re-fetch all and find it, or add a dedicated backend route if performance becomes an issue
                 const videoStatusResponse = await axios.get(`${RENDER_BACKEND_URL}/api/user/videos`, { 
                      headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -152,7 +156,7 @@ function ResultsPage() {
 
                     } else if (currentVideoRecord.status === 'failed') {
                         clearInterval(intervalId);
-                        setErrorMessage(`Analysis failed: ${currentVideoRecord.errorMessage || 'Unknown error.'}`); // Use setErrorMessage
+                        setErrorMessage(`Analysis failed: ${currentVideoRecord.errorMessage || 'Unknown error.'}`); 
                         setIsLoadingAnalysis(false);
                         setAnalysisStatusMessage(''); // Clear status message
                         // After failed analysis, also update the full list to show failed status
@@ -165,21 +169,21 @@ function ResultsPage() {
                 } else {
                     // Video record not found, might be a temporary issue or incorrect ID
                     clearInterval(intervalId);
-                    setErrorMessage('Video record not found for analysis.'); // Use setErrorMessage
+                    setErrorMessage('Video record not found for analysis.'); 
                     setIsLoadingAnalysis(false);
                     setAnalysisStatusMessage('');
                 }
             } catch (pollError) {
                 console.error('Polling for analysis failed:', pollError);
                 clearInterval(intervalId);
-                setErrorMessage(`Error checking analysis status: ${pollError.response?.data?.message || pollError.message}`); // Use setErrorMessage
+                setErrorMessage(`Error checking analysis status: ${pollError.response?.data?.message || pollError.message}`); 
                 setIsLoadingAnalysis(false);
                 setAnalysisStatusMessage('');
             }
         }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(intervalId); // Cleanup on component unmount
-    }, [navigate, setErrorMessage, setError, fetchAllAnalyses]); // Added setError and fetchAllAnalyses to useCallback dependencies
+    }, [navigate, setErrorMessage, setError, fetchAllAnalyses]);
 
 
     const handleDeleteClick = (analysis) => {
