@@ -47,20 +47,21 @@ function ResultsPage() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // State for the list of all results
-    const [results, setResults] = useState([]);
-    // State for the currently displayed (single) analysis if navigated from upload
-    const [currentAnalysisView, setCurrentAnalysisView] = useState(null);
-    const [videoUrlForCurrentView, setVideoUrlForCurrentView] = useState(null);
-    const [videoNameForCurrentView, setVideoNameForCurrentView] = useState(null);
-
-    // Loading and error states
-    // THIS LINE IS ABSOLUTELY ESSENTIAL for 'setError' to be defined and must be present.
-    const [error, setError] = useState(''); 
-    const [loading, setLoading] = useState(true); // Initial page load
+    // --- State Declarations - ORDER IS CRUCIAL FOR INITIALIZATION ---
+    // General page loading/error states (declare first)
+    const [loading, setLoading] = useState(true); 
+    const [error, setError] = useState(''); // Global page error
+    
+    // States related to a specific video analysis view
     const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false); // For polling a single analysis
     const [errorMessage, setErrorMessage] = useState(''); // Specific error for current analysis view
-    const [analysisStatusMessage, setAnalysisStatusMessage] = useState('');
+    const [analysisStatusMessage, setAnalysisStatusMessage] = useState(''); // Message about analysis progress
+    
+    // Data states
+    const [results, setResults] = useState([]); // List of all analyses
+    const [currentAnalysisView, setCurrentAnalysisView] = useState(null); // The detailed analysis object being viewed
+    const [videoUrlForCurrentView, setVideoUrlForCurrentView] = useState(null); // URL of the video being viewed
+    const [videoNameForCurrentView, setVideoNameForCurrentView] = useState(null); // Name of the video being viewed
 
     // Modal states
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -70,48 +71,13 @@ function ResultsPage() {
     const [isViewMoreModalOpen, setIsViewMoreModalOpen] = useState(false);
     const [selectedAnalysisInModal, setSelectedAnalysisInModal] = useState(null);
 
-    // Effect to fetch initial results or a specific analysis
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            // This setError call *must* be defined by the useState hook above
-            setError('Please log in to view results.'); 
-            setLoading(false);
-            return;
-        }
+    // --- Callback Functions (Defined early to be stable for useEffect dependencies) ---
 
-        const { videoRecordId, videoUrl, videoName } = location.state || {};
-        
-        // Scenario 1: Just uploaded a video, show its analysis immediately and poll
-        if (videoRecordId && videoUrl) {
-            console.log('ResultsPage: Navigated from upload, attempting to show specific video.');
-            setVideoUrlForCurrentView(videoUrl);
-            setVideoNameForCurrentView(videoName);
-            setCurrentAnalysisView(null); // Clear previous view if any
-            setLoading(false); // Page itself loaded
-            setAnalysisStatusMessage('Starting analysis for your video...'); // Initial status message
-            // Use useCallback wrapped function here
-            pollForSpecificAnalysis(videoRecordId, token);
-        } else {
-            // Scenario 2: Direct access or refresh, fetch all previous analyses
-            console.log('ResultsPage: Direct access or refresh, fetching all analyses.');
-            // Use useCallback wrapped function here
-            fetchAllAnalyses(token);
-        }
-
-        // Cleanup for any URL objects if component unmounts
-        return () => {
-            if (videoUrlForCurrentView && videoUrlForCurrentView.startsWith('blob:')) {
-                URL.revokeObjectURL(videoUrlForCurrentView);
-            }
-        };
-    }, [location.state, navigate, videoUrlForCurrentView, pollForSpecificAnalysis, fetchAllAnalyses]); // Added fetchAllAnalyses to deps
-
-    // fetchAllAnalyses wrapped in useCallback to ensure stable reference
+    // Fetches all analyses for the user
     const fetchAllAnalyses = useCallback(async (token) => {
-        setLoading(true); // Show full page spinner
-        setError(''); // Clear general error
-        setErrorMessage(''); // Clear specific error message
+        setLoading(true); 
+        setError(''); 
+        setErrorMessage(''); 
         try {
             const response = await axios.get(`${RENDER_BACKEND_URL}/api/analysis/my-analyses`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -119,22 +85,20 @@ function ResultsPage() {
             setResults(response.data);
             setLoading(false);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch analysis results.'); // Using setError here
+            setError(err.response?.data?.message || 'Failed to fetch analysis results.'); 
             setLoading(false);
             console.error('Fetch All Results Error:', err);
         }
-    }, [setError, setErrorMessage, setLoading, setResults]); // Dependencies for useCallback
+    }, [setError, setErrorMessage, setLoading, setResults]); 
 
-    // pollForSpecificAnalysis wrapped in useCallback to ensure stable reference
+    // Polls for a specific analysis result
     const pollForSpecificAnalysis = useCallback(async (recordId, token) => {
-        setIsLoadingAnalysis(true); // Show analysis-specific loading
+        setIsLoadingAnalysis(true); 
         setAnalysisStatusMessage('Analysis in progress...');
-        setErrorMessage(''); // Clear previous error
+        setErrorMessage(''); 
 
-        // Polling logic
         const intervalId = setInterval(async () => {
             try {
-                // First, fetch the Video record to check its status
                 const videoStatusResponse = await axios.get(`${RENDER_BACKEND_URL}/api/user/videos`, { 
                      headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -142,32 +106,27 @@ function ResultsPage() {
 
                 if (currentVideoRecord) {
                     if (currentVideoRecord.status === 'analyzed' && currentVideoRecord.analysisId) {
-                        clearInterval(intervalId); // Stop polling
+                        clearInterval(intervalId); 
                         setAnalysisStatusMessage('Analysis completed!'); 
-                        // Now fetch the detailed analysis data using analysisId
                         const analysisResponse = await axios.get(`${RENDER_BACKEND_URL}/api/analysis/${currentVideoRecord.analysisId}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
                         setCurrentAnalysisView(analysisResponse.data);
                         setIsLoadingAnalysis(false);
-                        setErrorMessage(''); // Clear any lingering error messages
-                        // After showing the specific analysis, also update the full list in the background
+                        setErrorMessage(''); 
                         fetchAllAnalyses(token); 
 
                     } else if (currentVideoRecord.status === 'failed') {
                         clearInterval(intervalId);
                         setErrorMessage(`Analysis failed: ${currentVideoRecord.errorMessage || 'Unknown error.'}`); 
                         setIsLoadingAnalysis(false);
-                        setAnalysisStatusMessage(''); // Clear status message
-                        // After failed analysis, also update the full list to show failed status
+                        setAnalysisStatusMessage(''); 
                         fetchAllAnalyses(token); 
 
                     } else {
-                        // Still processing, update status message
                         setAnalysisStatusMessage(`Analysis status: ${currentVideoRecord.status}...`);
                     }
                 } else {
-                    // Video record not found, might be a temporary issue or incorrect ID
                     clearInterval(intervalId);
                     setErrorMessage('Video record not found for analysis.'); 
                     setIsLoadingAnalysis(false);
@@ -180,12 +139,44 @@ function ResultsPage() {
                 setIsLoadingAnalysis(false);
                 setAnalysisStatusMessage('');
             }
-        }, 5000); // Poll every 5 seconds
+        }, 5000); 
 
-        return () => clearInterval(intervalId); // Cleanup on component unmount
-    }, [navigate, setErrorMessage, setError, fetchAllAnalyses]);
+        return () => clearInterval(intervalId); 
+    }, [setErrorMessage, setIsLoadingAnalysis, setAnalysisStatusMessage, setCurrentAnalysisView, fetchAllAnalyses]); // Dependencies for useCallback
 
+    // --- useEffect for initial data fetching / specific video display ---
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            setError('Please log in to view results.'); 
+            setLoading(false);
+            return;
+        }
 
+        const { videoRecordId, videoUrl, videoName } = location.state || {};
+        
+        if (videoRecordId && videoUrl) {
+            console.log('ResultsPage: Navigated from upload, attempting to show specific video.');
+            setVideoUrlForCurrentView(videoUrl);
+            setVideoNameForCurrentView(videoName);
+            setCurrentAnalysisView(null); 
+            setLoading(false); 
+            setAnalysisStatusMessage('Starting analysis for your video...'); 
+            pollForSpecificAnalysis(videoRecordId, token);
+        } else {
+            console.log('ResultsPage: Direct access or refresh, fetching all analyses.');
+            fetchAllAnalyses(token);
+        }
+
+        return () => {
+            if (videoUrlForCurrentView && videoUrlForCurrentView.startsWith('blob:')) {
+                URL.revokeObjectURL(videoUrlForCurrentView);
+            }
+        };
+    }, [location.state, navigate, videoUrlForCurrentView, pollForSpecificAnalysis, fetchAllAnalyses, setError, setLoading]); 
+    // Added setError and setLoading to useEffect dependencies for completeness (though they are stable)
+
+    // --- Other Handlers (unchanged logic) ---
     const handleDeleteClick = (analysis) => {
         setAnalysisToDelete(analysis);
         setIsDeleteConfirmOpen(true);
@@ -205,13 +196,11 @@ function ResultsPage() {
             setIsAlertOpen(true);
             setAnalysisToDelete(null);
 
-            // If the deleted analysis was the one currently being viewed, clear the view
             if (currentAnalysisView && currentAnalysisView._id === analysisToDelete._id) {
                 setCurrentAnalysisView(null);
                 setVideoUrlForCurrentView(null);
                 setVideoNameForCurrentView(null);
-                // Optionally, refetch all to ensure the list is consistent
-                fetchAllAnalyses(token);
+                fetchAllAnalyses(token); // Re-fetch list after deleting current view
             }
 
         } catch (err) {
@@ -241,12 +230,14 @@ function ResultsPage() {
         setSelectedAnalysisInModal(null);
     };
 
-    // Render loading spinner for initial page load or when specific analysis is being fetched
+    // --- Render Logic ---
+    // Show full page loading spinner for initial page load or when specific analysis is being fetched
     if (loading || (location.state?.videoRecordId && isLoadingAnalysis && !currentAnalysisView && !errorMessage)) {
         return <LoadingSpinner />;
     }
 
-    if (error) { // General error for fetching all analyses
+    // Show general page error (e.g., failed to fetch all results, or token missing)
+    if (error) { 
         return (
             <div className="results-page-container">
                 <AuthenticatedNavbar />
@@ -259,9 +250,8 @@ function ResultsPage() {
     }
 
     // Render the specific analysis view if a video was just uploaded AND analysis is ready/failed
-    // This block triggers ONLY when currentAnalysisView is populated or errorMessage for current view exists
     if (location.state?.videoRecordId && (currentAnalysisView || errorMessage)) {
-        const analysis = currentAnalysisView; // 'analysis' will be null if an error occurred
+        const analysis = currentAnalysisView; // 'analysis' will be null if an error occurred for the specific view
 
         return (
             <div className="results-page-container">
@@ -272,7 +262,7 @@ function ResultsPage() {
                     {analysisStatusMessage && !analysis && !errorMessage && (
                         <p className="text-center text-blue-600 mb-4">{analysisStatusMessage}</p>
                     )}
-                    {errorMessage && ( // Specific error for this single analysis
+                    {errorMessage && ( // Specific error for this single analysis (e.g., analysis failed)
                         <p className="text-center text-red-500 mb-4">{errorMessage}</p>
                     )}
 
@@ -284,7 +274,7 @@ function ResultsPage() {
                             </video>
                         </div>
                     )}
-                    {!videoUrlForCurrentView && ( // Only show if no URL
+                    {!videoUrlForCurrentView && ( 
                         <p className="text-center text-gray-500">Video preview not available.</p>
                     )}
 
