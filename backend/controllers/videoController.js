@@ -2,9 +2,6 @@
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-// fs and path are not needed here anymore as local video files are no longer handled after upload
-// const fs = require('fs'); 
-// const path = require('path'); 
 
 // AssemblyAI setup
 const { AssemblyAI } = require('assemblyai');
@@ -23,7 +20,7 @@ if (process.env.ASSEMBLYAI_API_KEY) {
 // Gemini API key (for LLM analysis, ensure this is still set in Render as GEMINI_API_KEY)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// LanguageTool grammar analysis (Your existing function, unchanged)
+// LanguageTool grammar analysis
 const analyzeGrammar = async (text) => {
     try {
         console.log('Sending text to LanguageTool API...');
@@ -33,11 +30,11 @@ const analyzeGrammar = async (text) => {
             body: `text=${encodeURIComponent(text)}&language=en-US`
         });
         if (!response.ok) {
-            console.error('LanguageTool API error:', response.status);
+            console.error('LanguageTool API error:', response.status, await response.text());
             throw new Error(`LanguageTool API call failed with status ${response.status}`);
         }
         const data = await response.json();
-        console.log('LanguageTool response:', { matches: data.matches });
+        console.log('LanguageTool response:', { matches: data.matches.length, firstMatch: data.matches[0] });
         const score = Math.max(0, 100 - data.matches.length * 5); 
         return { score, issues: data.matches };
     } catch (error) {
@@ -53,37 +50,34 @@ const transcribeAudio = async (videoUrl) => { // Now accepts a URL
         return '[Transcription Failed: AssemblyAI client not ready]';
     }
 
+    console.log(`DEBUG: Attempting AssemblyAI transcription for URL: ${videoUrl}`);
+    console.log(`DEBUG: AssemblyAI API Key status: ${process.env.ASSEMBLYAI_API_KEY ? 'Present' : 'NOT Present'}`);
+
     try {
-        console.log(`Sending video URL for transcription via AssemblyAI: ${videoUrl}`);
-        
-        // --- CRITICAL FIX: Ensure 'audio_url' is used for remote URLs ---
-        // The AssemblyAI SDK expects 'audio_url' when you provide a public HTTP(S) URL.
-        // If you were passing 'audio: videoUrl' before, that's incorrect for URLs.
+        // CRITICAL FIX: Changed parameter names from 'punctuation' to 'punctuate'
+        // and 'formatText' to 'format_text' as per AssemblyAI API/SDK convention.
         const transcript = await assemblyAIClient.transcripts.transcribe({
-            audio_url: videoUrl, // <--- THIS IS THE CRITICAL CHANGE: MUST BE audio_url
-            punctuation: true,
-            formatText: true,
-            // Add more features like speaker_diarization if needed for your analysis
-            // speaker_diarization: true,
-            // sentiment_analysis: true,
+            audio_url: videoUrl, 
+            punctuate: true,    // Corrected parameter name
+            format_text: true,  // Corrected parameter name
         });
 
         if (transcript.status === 'completed') {
-            console.log('AssemblyAI Transcription completed:', transcript.text);
+            console.log('AssemblyAI Transcription completed:', transcript.text.substring(0, 200) + '...'); // Log first 200 chars
             return transcript.text;
         } else {
-            console.error('AssemblyAI Transcription failed or is not completed. Status:', transcript.status);
-            // If transcription fails, return a meaningful error message
+            console.error('AssemblyAI Transcription failed or is not completed. Status:', transcript.status, 'Transcript Object:', transcript);
             return `[Transcription Failed: AssemblyAI status ${transcript.status}. Error: ${transcript.error || 'Unknown'}]`;
         }
 
     } catch (error) {
-        console.error('Error during AssemblyAI audio transcription:', error);
+        console.error('CRITICAL ERROR during AssemblyAI audio transcription:', error);
+        console.error('Full AssemblyAI error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return `[Transcription Failed: ${error.message}]`;
     }
 };
 
-// Function to analyze speech properties using Gemini API (unchanged)
+// Function to analyze speech properties using Gemini API
 const analyzeSpeechWithGemini = async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
@@ -156,7 +150,7 @@ const analyzeSpeechWithGemini = async (transcription) => {
             result.candidates[0].content && result.candidates[0].content.parts &&
             result.candidates[0].content.parts.length > 0) {
             const jsonText = result.candidates[0].content.parts[0].text;
-            console.log('Gemini analysis JSON string:', jsonText);
+            console.log('Gemini analysis JSON string (first 200 chars):', jsonText.substring(0, Math.min(jsonText.length, 200)) + '...');
             try {
                 const parsedAnalysis = JSON.parse(jsonText);
                 return parsedAnalysis;
@@ -180,21 +174,15 @@ const analyzeSpeechWithGemini = async (transcription) => {
 // @route   POST /api/upload (Note: This is your general video upload route)
 // @access  Private
 const uploadVideo = asyncHandler(async (req, res) => {
-    // Multer (configured with CloudinaryStorage in routes/video.js)
-    // will have uploaded the video to Cloudinary.
-    // req.file.path contains the secure URL from Cloudinary.
-
     if (!req.file) {
         res.status(400);
         throw new Error('No video file uploaded.');
     }
 
     const { videoName } = req.body;
-    // Extract the Cloudinary URL from req.file.path (renamed for clarity)
     const { originalname, path: videoCloudinaryUrl } = req.file; 
     const userId = req.user._id;
 
-    // Use the Cloudinary URL as the persistent video URL
     const videoUrl = videoCloudinaryUrl; 
 
     let newVideoRecord;
@@ -202,49 +190,45 @@ const uploadVideo = asyncHandler(async (req, res) => {
         newVideoRecord = await Video.create({
             userId,
             filename: originalname,
-            videoUrl: videoUrl, // Store the Cloudinary URL for playback
-            filePath: videoUrl, // Store the Cloudinary URL here too for consistency with previous schema (if desired)
-            status: 'uploaded',
+            videoUrl: videoUrl, 
+            filePath: videoUrl, 
+            status: 'uploaded', // Initial status
         });
     } catch (dbError) {
         console.error('Error saving raw video record to DB:', dbError);
-        // No local file to clean up here, as it's uploaded directly to Cloudinary
         res.status(500);
         throw new Error('Server error: Could not record video upload.');
     }
 
-    // Send a 202 Accepted response immediately, so frontend doesn't hang
+    // Send a 202 Accepted response immediately as analysis is asynchronous
     res.status(202).json({
         message: 'Video uploaded successfully. Analysis in progress.',
         videoRecordId: newVideoRecord ? newVideoRecord._id : null,
-        videoUrl: videoUrl, // Optionally send the Cloudinary URL back to frontend for immediate use
+        videoUrl: videoUrl, 
+        videoName: videoName || originalname // Pass videoName back for frontend display
     });
 
     // --- ASYNCHRONOUS ANALYSIS START ---
-    // This part runs in the background after sending the initial response
+    // Perform analysis in the background after sending initial response
     try {
         console.log(`Starting real analysis for video: ${originalname} from URL: ${videoUrl}`);
 
-        // 1. Transcribe audio from the uploaded VIDEO URL using AssemblyAI
-        const transcription = await transcribeAudio(videoUrl); // Pass the Cloudinary URL directly
+        const transcription = await transcribeAudio(videoUrl); 
         if (transcription.startsWith('[Transcription Failed')) {
             throw new Error(transcription); 
         }
         console.log('Completed transcription:', transcription.substring(0, Math.min(transcription.length, 100)) + '...'); 
 
-        // 2. Perform grammar analysis using LanguageTool
         const grammarAnalysis = await analyzeGrammar(transcription);
         console.log('Completed grammar analysis:', grammarAnalysis);
 
-        // 3. Perform detailed speech analysis using Gemini
         const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
         console.log('Completed Gemini analysis:', geminiAnalysis);
 
-        // Combine all analysis results and save to Analysis model
         const newAnalysis = await Analysis.create({
             userId: userId,
-            videoUrl: videoUrl, // This is now the persistent Cloudinary URL
-            videoPath: videoUrl, // Consistent with videoUrl for persistence
+            videoUrl: videoUrl, 
+            videoPath: videoUrl, 
             videoName: videoName || originalname,
             date: new Date(),
             transcription: transcription, 
@@ -263,25 +247,23 @@ const uploadVideo = asyncHandler(async (req, res) => {
             areasForImprovement: geminiAnalysis.areasForImprovement,
         });
 
-        // Update the Video record with analysis status and ID
+        // Update the video record with analysis details and status
         if (newVideoRecord) {
             newVideoRecord.status = 'analyzed';
-            newVideoRecord.analysisId = newAnalysis._id; // Store reference to Analysis
+            newVideoRecord.analysisId = newAnalysis._id; 
             await newVideoRecord.save();
         }
 
         console.log(`Analysis complete and saved for video: ${videoName || originalname}. Analysis ID: ${newAnalysis._id}`);
 
-        // No local file cleanup needed here as videos are directly uploaded to Cloudinary
     } catch (analysisError) {
         console.error(`Error analyzing or saving analysis for video ${originalname}:`, analysisError);
-        // Update video status to failed if analysis fails
+        // Update video record status to failed if analysis pipeline fails
         if (newVideoRecord) {
             newVideoRecord.status = 'failed';
             newVideoRecord.errorMessage = analysisError.message; 
             await newVideoRecord.save();
         }
-        // No local file cleanup needed here
     }
 });
 
@@ -289,8 +271,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
 // @route   GET /api/user/videos
 // @access  Private
 const getUserVideos = asyncHandler(async (req, res) => {
-    // This route remains the same as it fetches from the database.
-    // The videoUrl in the returned objects will now be the persistent Cloudinary URL.
     const videos = await Video.find({ userId: req.user._id }).sort({ uploadDate: -1 });
     res.status(200).json({ videos });
 });
