@@ -1,9 +1,9 @@
 // backend/routes/video.js
 // This file configures Multer to upload video files directly to Cloudinary,
-// ensuring video persistence.
+// ensuring video persistence and asynchronous processing for large files.
 
 const express = require('express');
-const router = express.Router();
+const router = express.Router(); // CRITICAL FIX: Use express.Router() to create a router instance
 const { protect } = require('../middleware/authMiddleware');
 const { uploadVideo, getUserVideos } = require('../controllers/videoController');
 
@@ -12,12 +12,7 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-// No longer need fs or path imports here as local storage is removed
-// const fs = require('fs');
-// const path = require('path');
-
 // Configure Cloudinary with your credentials from environment variables
-// These MUST be set in your Render dashboard (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -34,33 +29,39 @@ const cloudinaryVideoStorage = new CloudinaryStorage({
         format: async (req, file) => 'mp4',
         // Generate a unique public ID for the video, including user ID and timestamp
         public_id: (req, file) => `video-${req.user ? req.user._id : 'guest'}-${Date.now()}`, 
-        // Optional: Apply video transformations here if desired (e.g., optimize for streaming)
-        // For example, to set a max width/height or optimize codec:
-        // transformation: [{ width: 1280, height: 720, crop: "limit", video_codec: "auto" }]
+        
+        // --- CRITICAL ADDITION FOR LARGE VIDEOS (already added, ensure correct) ---
+        eager: [ // Define transformations that Cloudinary should apply eagerly (asynchronously)
+            { format: 'mp4', quality: 'auto', crop: 'limit', width: 1280, height: 720 }, // Example transformation
+        ],
+        eager_async: true, // Process eager transformations in the background
+        async: true, // Ensure the main upload itself is treated asynchronously (important for large files)
+        // For production, you would add a notification_url here to trigger analysis
+        // after Cloudinary has finished its processing for very large videos.
+        // notification_url: `${process.env.BACKEND_URL}/api/cloudinary-webhook` // Example
     },
-    // Optional: Add a chunk_size for very large video files (e.g., 6MB)
-    // For large files, consider using direct upload from frontend for better performance
-    // chunk_size: 6000000 
-});
-
-// Create a Multer upload instance using CloudinaryStorage for videos
-const videoUpload = multer({
-    storage: cloudinaryVideoStorage, // <--- CORRECTED: Using CloudinaryStorage
-    limits: { fileSize: 200 * 1024 * 1024 }, // Set a larger file size limit for videos (e.g., 200 MB)
-    fileFilter: (req, file, cb) => { // Filter to allow only video files
-        const allowedMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']; 
+    // Set a larger file size limit for Multer (e.g., 200 MB, adjust as needed)
+    // This limit is for Multer, Cloudinary has its own limits.
+    limits: { fileSize: 200 * 1024 * 1024 }, 
+    fileFilter: (req, file, cb) => { 
+        const allowedMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/x-flv', 'video/3gpp', 'video/mpeg', 'video/x-m4v']; 
         const isMimeTypeAllowed = allowedMimeTypes.includes(file.mimetype);
 
         console.log('Backend Multer video fileFilter: Received mimetype:', file.mimetype);
         console.log('Backend Multer video fileFilter: Received originalname:', file.originalname);
 
         if (isMimeTypeAllowed) {
-            return cb(null, true); // Accept the file
+            return cb(null, true); 
         } else {
             console.error('Backend Multer video fileFilter: Rejected file due to mimetype:', file.mimetype);
-            cb(new Error('Only video files are allowed!'), false); // Reject the file
+            cb(new Error('Only video files are allowed!'), false); 
         }
     },
+});
+
+// Create a Multer upload instance using CloudinaryStorage for videos
+const videoUpload = multer({
+    storage: cloudinaryVideoStorage, 
 });
 
 // Route for uploading video and starting analysis
