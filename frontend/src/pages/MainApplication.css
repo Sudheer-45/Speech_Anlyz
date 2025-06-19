@@ -1,3 +1,13 @@
+html {
+  scroll-behavior: smooth;
+}
+
+.main-app-container {
+  transition: all 0.4s ease-in-out;
+  will-change: transform;
+}
+
+
 .main-app-container {
     display: flex;
     flex-direction: column;
