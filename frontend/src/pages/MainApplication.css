@@ -1,3 +1,4 @@
+
 html {
   scroll-behavior: smooth;
 }
@@ -7,6 +8,14 @@ html {
   will-change: transform;
 }
 
+@keyframes float {
+  0% { background-position: 0 0; }
+  100% { background-position: 200px 200px; }
+}
+
+.main-app-container::after {
+  animation: float 60s linear infinite;
+}
 
 .main-app-container {
     display: flex;
