@@ -502,6 +502,11 @@
         padding: 1rem;
         width:95%
     }
+    
+    .upload-section {
+        padding: 0rem;
+        width:95%
+    }
 
     .upload-section h2 {
         font-size: 1.6rem;
