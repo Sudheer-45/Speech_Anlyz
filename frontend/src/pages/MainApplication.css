@@ -497,6 +497,9 @@
         rem: column;
         width:98%
     }
+    .video-file{
+        width:96%;
+    }
 
     .record-section {
         padding: 1rem;
