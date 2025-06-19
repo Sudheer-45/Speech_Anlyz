@@ -521,6 +521,7 @@
     inputfile-input {
         padding: 0.95rem;
         font-size: 1rem;
+        width: 98%;
 }
 
     .form-label {
