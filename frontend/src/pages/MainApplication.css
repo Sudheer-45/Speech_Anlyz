@@ -1,4 +1,4 @@
-/* Base Styles */
+/* Base Container Styles */
 .main-app-container {
   display: flex;
   flex-direction: column;
@@ -6,8 +6,10 @@
   background: linear-gradient(145deg, #0a0a1f, #1e2a44);
   color: #ffffff;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden; /* Prevent horizontal overflow */
 }
 
+/* Main Content Area */
 .main-content {
   flex: 1;
   padding: 2rem 1rem;
@@ -15,26 +17,39 @@
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem; /* Consistent spacing between sections */
 }
 
-/* Typography */
+/* Headings */
 .main-content h1 {
   font-size: clamp(2rem, 5vw, 3.5rem);
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   color: #3b82f6;
   text-align: center;
+  line-height: 1.2;
 }
 
-/* Layout Components */
+/* Information Section */
 .website-info {
   background: rgba(20, 20, 40, 0.75);
   backdrop-filter: blur(10px);
   border-radius: 15px;
   padding: 1.5rem;
-  margin: 0 auto 2rem;
+  margin: 0 auto;
   max-width: 900px;
+  width: 100%;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.website-info p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+/* Video Input Container */
 .video-input-options {
   background: rgba(20, 20, 40, 0.75);
   backdrop-filter: blur(10px);
@@ -42,11 +57,20 @@
   padding: 1.5rem;
   margin: 0 auto;
   max-width: 1000px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 /* Form Elements */
 .form-group {
   margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.video-name-group {
+  max-width: 600px;
+  margin: 0 auto 2rem;
 }
 
 .form-input, .file-input {
@@ -56,64 +80,84 @@
   background: rgba(255, 255, 255, 0.08);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 0.5rem;
 }
 
-/* Video Sections Layout */
+/* Upload/Record Sections */
 .upload-record-sections {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
+  gap: 2rem;
+  margin-top: 1rem;
 }
 
 .upload-section, .record-section {
   background: rgba(30, 30, 50, 0.85);
   border-radius: 15px;
   padding: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.upload-section h2, .record-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
 }
 
 /* Video Elements */
 .video-area {
+  width: 100%;
   margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .webcam-preview, .recorded-preview {
   width: 100%;
-  max-width: 100%;
+  max-width: 350px;
   border-radius: 8px;
+  aspect-ratio: 16/9; /* Maintain aspect ratio */
 }
 
 /* Buttons */
 .action-button {
   width: 100%;
-  padding: 0.8rem;
+  padding: 1rem;
   margin-top: 1rem;
   border-radius: 8px;
   font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.action-button:active {
+  transform: scale(0.98);
+}
+
+/* Status Message */
+.status-message {
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0 auto 1.5rem;
+  max-width: 90%;
+  text-align: center;
 }
 
 /* Responsive Adjustments */
-@media (min-width: 640px) {
-  .main-content {
-    padding: 3rem 2rem;
-  }
-  
+@media (min-width: 768px) {
   .upload-record-sections {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .action-button {
-    padding: 1rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .website-info, .video-input-options {
-    padding: 2rem;
+  .main-content {
+    padding: 3rem 2rem;
   }
   
-  .form-input, .file-input {
-    padding: 1.2rem 1.5rem;
+  .website-info, .video-input-options {
+    padding: 2rem;
   }
 }
 
@@ -121,35 +165,27 @@
   .main-content {
     padding: 3rem;
   }
-  
-  .upload-section, .record-section {
-    padding: 2rem;
-  }
 }
 
-/* Special Cases for Very Small Screens */
+/* Very Small Screens */
 @media (max-width: 360px) {
   .main-content {
     padding: 1.5rem 0.5rem;
   }
   
-  .website-info, .video-input-options {
+  .website-info, .video-input-options,
+  .upload-section, .record-section {
     padding: 1rem;
-    border-radius: 12px;
   }
   
   .action-button {
+    padding: 0.8rem;
     font-size: 0.9rem;
-    padding: 0.7rem;
   }
 }
 
-/* Orientation Adjustments */
+/* Landscape Orientation */
 @media (orientation: landscape) and (max-height: 500px) {
-  .main-content {
-    padding: 1rem;
-  }
-  
   .upload-record-sections {
     grid-template-columns: 1fr;
   }
@@ -157,26 +193,8 @@
   .video-area {
     max-height: 40vh;
   }
-}
-
-/* High DPI Displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) { 
-  .form-input, .file-input, .action-button {
-    border-width: 0.5px;
-  }
-}
-
-/* Accessibility Considerations */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* Dark Mode Consistency */
-@media (prefers-color-scheme: dark) {
-  .main-app-container {
-    background: linear-gradient(145deg, #0a0a1f, #1e2a44);
+  
+  .main-content {
+    padding: 1rem;
   }
 }
