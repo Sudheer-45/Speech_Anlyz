@@ -158,7 +158,6 @@
 }
 
 .file-input::before {
-    content: 'Choose Video';
     display: inline-block;
     background: linear-gradient(45deg, #3b82f6, #60a5fa);
     color: #ffffff;
