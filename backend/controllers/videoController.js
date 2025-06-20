@@ -195,7 +195,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
     if (!videoName) {
         res.status(400);
-        throw new new Error('Video name is required.');
+        throw new Error('Video name is required.'); // Corrected: Removed extra 'new' keyword
     }
 
     // --- Direct Cloudinary Upload ---
@@ -211,7 +211,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
         console.log('Attempting direct upload to Cloudinary...');
         const uploadResult = await new Promise((resolve, reject) => {
-            // Use uploader.upload_stream to upload from buffer
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
                     folder: 'comm-analyzer/videos',
@@ -219,38 +218,40 @@ const uploadVideo = asyncHandler(async (req, res) => {
                     public_id: `video-${userId}-${Date.now()}`,
                     chunk_size: 6000000, // 6MB chunks for robust upload
                     async: true, // Process asynchronously
-                    // eager: [{ format: 'mp4', quality: 'auto', crop: 'limit', width: 1280, height: 720 }],
-                    // eager_async: true,
-                    // format: 'mp4' // Convert to MP4
+                    // --- Re-introducing eager transformations with MP4 format ---
+                    eager: [
+                        { format: 'mp4', quality: 'auto', crop: 'limit', width: 1280, height: 720 },
+                        // You can add other resolutions/formats here if needed, e.g., for mobile playback
+                        // { format: 'mp4', quality: 'auto', crop: 'limit', width: 640, height: 360 }
+                    ],
+                    eager_async: true, // Perform eager transformations asynchronously
+                    format: 'mp4' // Explicitly set output format to MP4
                 },
                 (error, result) => {
                     if (error) {
                         console.error('Cloudinary upload stream callback error:', error);
                         return reject(new Error(`Cloudinary upload failed (callback): ${error.message}`));
                     }
-                    console.log('Cloudinary upload stream callback result:', { secure_url: result.secure_url, public_id: result.public_id, bytes: result.bytes });
+                    console.log('Cloudinary upload stream callback result:', { secure_url: result.secure_url, public_id: result.public_id, bytes: result.bytes, eager_results: result.eager ? result.eager.length : 0 });
                     resolve(result);
                 }
             );
-            // End the stream with the video buffer
             uploadStream.end(buffer);
         });
 
-        // --- NEW DEBUG LOGGING ---
-        console.log('DEBUG: Cloudinary uploadResult object:', uploadResult);
+        console.log('DEBUG: Full Cloudinary uploadResult object from promise resolution:', JSON.stringify(uploadResult, null, 2));
+
         if (uploadResult && uploadResult.secure_url) {
             videoCloudinaryUrl = uploadResult.secure_url;
         } else {
-            console.error('ERROR: Cloudinary upload result did NOT contain a secure_url:', uploadResult);
-            // Throw an error here if secure_url is missing
+            console.error('ERROR: Cloudinary upload result did NOT contain a secure_url, despite callback. Full result:', uploadResult);
             throw new Error('Cloudinary upload completed, but no secure video URL was returned.');
         }
 
         if (uploadResult && uploadResult.public_id) {
             videoCloudinaryPublicId = uploadResult.public_id;
         } else {
-            console.error('ERROR: Cloudinary upload result did NOT contain a public_id:', uploadResult);
-            // Throw an error here if public_id is missing
+            console.error('ERROR: Cloudinary upload result did NOT contain a public_id. Full result:', uploadResult);
             throw new Error('Cloudinary upload completed, but no public ID was returned.');
         }
 
