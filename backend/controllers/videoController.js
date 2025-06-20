@@ -35,11 +35,13 @@ const analyzeGrammar = async (text) => {
         }
         const data = await response.json();
         console.log('LanguageTool response:', { matches: data.matches.length, firstMatch: data.matches[0] });
-        const score = Math.max(0, 100 - data.matches.length * 5); 
+        // Example scoring: 100 minus 5 points per error, min 0
+        const score = Math.max(0, 100 - data.matches.length * 5);
         return { score, issues: data.matches };
     } catch (error) {
         console.error('LanguageTool error:', error.message);
-        return { score: 80, issues: [] }; 
+        // Provide a default/fallback score and empty issues if API fails
+        return { score: 80, issues: [] };
     }
 };
 
@@ -55,21 +57,23 @@ const transcribeAudio = async (videoUrl) => { // Now accepts a URL
 
     try {
         const transcript = await assemblyAIClient.transcripts.transcribe({
-            audio_url: videoUrl, 
-            punctuate: true,    // Corrected parameter name
-            format_text: true,  // Corrected parameter name
+            audio_url: videoUrl,
+            punctuate: true,
+            format_text: true,
         });
 
         if (transcript.status === 'completed') {
-            console.log('AssemblyAI Transcription completed:', transcript.text.substring(0, Math.min(transcript.text.length, 200)) + '...'); 
+            console.log('AssemblyAI Transcription completed:', transcript.text.substring(0, Math.min(transcript.text.length, 200)) + '...');
             return transcript.text;
         } else {
             console.error('AssemblyAI Transcription failed or is not completed. Status:', transcript.status, 'Transcript Object:', transcript);
+            // Include transcript.error if available for more specific debugging
             return `[Transcription Failed: AssemblyAI status ${transcript.status}. Error: ${transcript.error || 'Unknown'}]`;
         }
 
     } catch (error) {
         console.error('CRITICAL ERROR during AssemblyAI audio transcription:', error);
+        // Log the full error object if possible for detailed debugging
         console.error('Full AssemblyAI error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return `[Transcription Failed: ${error.message}]`;
     }
@@ -79,11 +83,11 @@ const transcribeAudio = async (videoUrl) => { // Now accepts a URL
 const analyzeSpeechWithGemini = async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
-        return { 
-            overallScore: 0, 
-            fillerWords: [], 
-            speakingRate: 0, 
-            fluencyFeedback: 'LLM not configured.', 
+        return {
+            overallScore: 0,
+            fillerWords: [],
+            speakingRate: 0,
+            fluencyFeedback: 'LLM not configured.',
             sentiment: 'Neutral',
             areasForImprovement: []
         };
@@ -91,17 +95,17 @@ const analyzeSpeechWithGemini = async (transcription) => {
 
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-    const prompt = `Analyze the following English speech transcription. Provide the following information in a concise, parseable JSON format. 
+    const prompt = `Analyze the following English speech transcription. Provide the following information in a concise, parseable JSON format.
     Do NOT include any preamble or extra text outside the JSON.
-    
+
     JSON Schema:
     {
-      "overallScore": number, 
-      "fillerWords": string[], 
-      "speakingRate": number, 
-      "fluencyFeedback": string, 
-      "sentiment": "Positive" | "Negative" | "Neutral", 
-      "areasForImprovement": string[] 
+      "overallScore": number,
+      "fillerWords": string[],
+      "speakingRate": number,
+      "fluencyFeedback": string,
+      "sentiment": "Positive" | "Negative" | "Neutral",
+      "areasForImprovement": string[]
     }
 
     Speech Transcription: "${transcription}"`;
@@ -118,8 +122,8 @@ const analyzeSpeechWithGemini = async (transcription) => {
                     topP: 0.95,
                     topK: 40,
                     maxOutputTokens: 800,
-                    responseMimeType: "application/json", 
-                    responseSchema: { 
+                    responseMimeType: "application/json",
+                    responseSchema: {
                         type: "OBJECT",
                         properties: {
                             "overallScore": { "type": "NUMBER" },
@@ -181,33 +185,31 @@ const uploadVideo = asyncHandler(async (req, res) => {
         throw new Error('No video file uploaded. Multer did not provide req.file.');
     }
 
-    // Explicitly check for req.file.path from Multer-Cloudinary
-    if (!req.file.path) {
-        console.error('ERROR: req.file.path is undefined after Multer/Cloudinary processing. Full req.file:', req.file);
+    // Explicitly check for req.file.path (the Cloudinary URL) and req.file.filename (the public_id)
+    if (!req.file.path || !req.file.filename) {
+        console.error('ERROR: req.file.path or req.file.filename is undefined after Multer/Cloudinary processing. Full req.file:', req.file);
         res.status(500);
-        throw new Error('Server error: Video URL not generated by Cloudinary upload. Check Cloudinary settings or file filters.');
+        throw new Error('Server error: Video URL or public ID not generated by Cloudinary upload. Check Cloudinary settings or file filters.');
     }
 
-    const { originalname, path: videoCloudinaryUrl } = req.file; 
+    const { originalname, path: videoCloudinaryUrl, filename: videoCloudinaryPublicId } = req.file;
     const { videoName } = req.body;
     const userId = req.user._id;
-
-    const videoUrl = videoCloudinaryUrl; 
 
     let newVideoRecord;
     try {
         newVideoRecord = await Video.create({
             userId,
             filename: originalname,
-            videoUrl: videoUrl, 
-            filePath: videoUrl, 
+            videoName: videoName || originalname, // Use provided videoName or original filename
+            videoUrl: videoCloudinaryUrl,
+            filePath: videoCloudinaryPublicId, // Store the Cloudinary public_id
             status: 'uploaded', // Initial status
+            uploadDate: new Date(), // Add uploadDate field
         });
         console.log('Video record created in DB:', newVideoRecord);
     } catch (dbError) {
         console.error('Error saving raw video record to DB:', dbError);
-        // Do NOT send res.status(500) again if it's already set by asyncHandler or previous middleware
-        // Instead, just throw the error to be caught by asyncHandler
         throw new Error('Server error: Could not record video upload due to DB validation: ' + dbError.message);
     }
 
@@ -215,19 +217,20 @@ const uploadVideo = asyncHandler(async (req, res) => {
     res.status(202).json({
         message: 'Video uploaded successfully. Analysis in progress.',
         videoRecordId: newVideoRecord ? newVideoRecord._id : null,
-        videoUrl: videoUrl, 
-        videoName: videoName || originalname 
+        videoUrl: videoCloudinaryUrl,
+        videoName: videoName || originalname
     });
 
     // --- ASYNCHRONOUS ANALYSIS START ---
+    // This part runs after the response has been sent to the client.
     try {
-        console.log(`Starting real analysis for video: ${originalname} from URL: ${videoUrl}`);
+        console.log(`Starting real analysis for video: ${videoName || originalname} from URL: ${videoCloudinaryUrl}`);
 
-        const transcription = await transcribeAudio(videoUrl); 
+        const transcription = await transcribeAudio(videoCloudinaryUrl);
         if (transcription.startsWith('[Transcription Failed')) {
-            throw new Error(transcription); 
+            throw new Error(transcription);
         }
-        console.log('Completed transcription:', transcription.substring(0, Math.min(transcription.length, 100)) + '...'); 
+        console.log('Completed transcription:', transcription.substring(0, Math.min(transcription.length, 100)) + '...');
 
         const grammarAnalysis = await analyzeGrammar(transcription);
         console.log('Completed grammar analysis:', grammarAnalysis);
@@ -237,13 +240,15 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
         const newAnalysis = await Analysis.create({
             userId: userId,
-            videoUrl: videoUrl, 
-            videoPath: videoUrl, 
+            videoRecordId: newVideoRecord._id, // Link analysis to the video record
+            videoUrl: videoCloudinaryUrl,
+            videoPath: videoCloudinaryPublicId, // Consistent naming for public_id
             videoName: videoName || originalname,
             date: new Date(),
-            transcription: transcription, 
+            transcription: transcription,
             overallScore: geminiAnalysis.overallScore,
-            grammarErrors: geminiAnalysis.grammarErrors || grammarAnalysis.issues.map(issue => ({
+            // Combine grammar analysis issues with any other grammar-related insights from Gemini if applicable
+            grammarErrors: grammarAnalysis.issues.map(issue => ({
                 message: issue.message,
                 text: issue.context.text,
                 offset: issue.context.offset,
@@ -260,7 +265,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
         // Update the video record with analysis details and status
         if (newVideoRecord) {
             newVideoRecord.status = 'analyzed';
-            newVideoRecord.analysisId = newAnalysis._id; 
+            newVideoRecord.analysisId = newAnalysis._id;
             await newVideoRecord.save();
         }
 
@@ -271,7 +276,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
         // Update video record status to failed if analysis pipeline fails
         if (newVideoRecord) {
             newVideoRecord.status = 'failed';
-            newVideoRecord.errorMessage = analysisError.message; 
+            newVideoRecord.errorMessage = analysisError.message;
             await newVideoRecord.save();
         }
     }
