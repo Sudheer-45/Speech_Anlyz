@@ -195,7 +195,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
     if (!videoName) {
         res.status(400);
-        throw new Error('Video name is required.');
+        throw new new Error('Video name is required.');
     }
 
     // --- Direct Cloudinary Upload ---
@@ -212,8 +212,8 @@ const uploadVideo = asyncHandler(async (req, res) => {
         console.log('Attempting direct upload to Cloudinary...');
         const uploadResult = await new Promise((resolve, reject) => {
             // Use uploader.upload_stream to upload from buffer
-            cloudinary.uploader.upload_stream(
-                { 
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
                     folder: 'comm-analyzer/videos',
                     resource_type: 'video',
                     public_id: `video-${userId}-${Date.now()}`,
@@ -225,22 +225,39 @@ const uploadVideo = asyncHandler(async (req, res) => {
                 },
                 (error, result) => {
                     if (error) {
-                        console.error('Cloudinary upload stream error:', error);
-                        return reject(new Error(`Cloudinary upload failed: ${error.message}`));
+                        console.error('Cloudinary upload stream callback error:', error);
+                        return reject(new Error(`Cloudinary upload failed (callback): ${error.message}`));
                     }
-                    console.log('Cloudinary upload stream result:', { secure_url: result.secure_url, public_id: result.public_id, bytes: result.bytes });
+                    console.log('Cloudinary upload stream callback result:', { secure_url: result.secure_url, public_id: result.public_id, bytes: result.bytes });
                     resolve(result);
                 }
-            ).end(buffer); // End the stream with the video buffer
+            );
+            // End the stream with the video buffer
+            uploadStream.end(buffer);
         });
 
-        videoCloudinaryUrl = uploadResult.secure_url;
-        videoCloudinaryPublicId = uploadResult.public_id;
+        // --- NEW DEBUG LOGGING ---
+        console.log('DEBUG: Cloudinary uploadResult object:', uploadResult);
+        if (uploadResult && uploadResult.secure_url) {
+            videoCloudinaryUrl = uploadResult.secure_url;
+        } else {
+            console.error('ERROR: Cloudinary upload result did NOT contain a secure_url:', uploadResult);
+            // Throw an error here if secure_url is missing
+            throw new Error('Cloudinary upload completed, but no secure video URL was returned.');
+        }
+
+        if (uploadResult && uploadResult.public_id) {
+            videoCloudinaryPublicId = uploadResult.public_id;
+        } else {
+            console.error('ERROR: Cloudinary upload result did NOT contain a public_id:', uploadResult);
+            // Throw an error here if public_id is missing
+            throw new Error('Cloudinary upload completed, but no public ID was returned.');
+        }
 
         console.log(`Cloudinary upload successful. URL: ${videoCloudinaryUrl}, Public ID: ${videoCloudinaryPublicId}`);
 
     } catch (cloudinaryError) {
-        console.error('Error during direct Cloudinary upload:', cloudinaryError);
+        console.error('ERROR: Catch block for direct Cloudinary upload triggered:', cloudinaryError);
         res.status(500);
         throw new Error('Server error: Failed to upload video to Cloudinary: ' + cloudinaryError.message);
     }
@@ -251,7 +268,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
             userId,
             filename: originalname, // Original filename from client
             videoName: videoName || originalname,
-            videoUrl: videoCloudinaryUrl,
+            videoUrl: videoCloudinaryUrl, // This will now be set (or error thrown above)
             filePath: videoCloudinaryPublicId, // Store the Cloudinary public_id
             status: 'uploaded', // Initial status
             uploadDate: new Date(),
@@ -328,7 +345,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
     } catch (analysisError) {
         console.error(`Error analyzing or saving analysis for video ${originalname}:`, analysisError);
-        // Update video record status to failed if analysis pipeline fails
         if (newVideoRecord) {
             newVideoRecord.status = 'failed';
             newVideoRecord.errorMessage = analysisError.message;
