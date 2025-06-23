@@ -1,10 +1,9 @@
-// backend/controllers/videoController.js
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-const cloudinary = require('cloudinary').v2; // Import cloudinary here
+const cloudinary = require('cloudinary').v2;
 
-// Cloudinary configuration (ensure env vars are set in Render)
+// Cloudinary configuration
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -174,19 +173,12 @@ const analyzeSpeechWithGemini = async (transcription) => {
         throw new Error('Failed to analyze speech with LLM: ' + error.message);
     }
 };
+// ... (keep your existing helper functions: analyzeGrammar, transcribeAudio, analyzeSpeechWithGemini)
 
-
-// @desc    Upload a video for analysis
-// @route   POST /api/upload
-// @access  Private
 const uploadVideo = asyncHandler(async (req, res) => {
-    console.log('DEBUG: Received upload request in uploadVideo controller.');
-    console.log('DEBUG: Received req.file object from Multer:', req.file); // Now contains buffer or path
-    console.log('DEBUG: Received req.body:', req.body);
-
-    if (!req.file || !req.file.buffer) { // Check for buffer if using memoryStorage
+    if (!req.file || !req.file.buffer) {
         res.status(400);
-        throw new Error('No video file buffer received. Multer did not process the upload correctly.');
+        throw new Error('No video file buffer received');
     }
 
     const { originalname, buffer, mimetype } = req.file;
@@ -195,174 +187,171 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
     if (!videoName) {
         res.status(400);
-        throw new Error('Video name is required.'); // Corrected: Removed extra 'new' keyword
+        throw new Error('Video name is required');
     }
 
-    // --- Direct Cloudinary Upload ---
-    let videoCloudinaryUrl;
-    let videoCloudinaryPublicId;
+    // Generate unique public_id
+    const publicId = `comm-analyzer/videos/video-${userId}-${Date.now()}`;
 
     try {
-        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-            console.error('Cloudinary credentials not set. Cannot upload to Cloudinary.');
-            res.status(500);
-            throw new Error('Server Error: Cloudinary is not configured correctly. Missing API credentials.');
-        }
+        // Create video record in DB with 'uploading' status
+        const newVideoRecord = await Video.create({
+            userId,
+            filename: originalname,
+            videoName,
+            publicId, // Store Cloudinary public_id
+            status: 'uploading',
+            uploadDate: new Date()
+        });
 
-        console.log('Attempting direct upload to Cloudinary...');
+        // Upload to Cloudinary with webhook notification
         const uploadResult = await new Promise((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
-                    folder: 'comm-analyzer/videos',
                     resource_type: 'video',
-                    public_id: `video-${userId}-${Date.now()}`,
-                    chunk_size: 6000000, // 6MB chunks for robust upload
-                    async: true, // Process asynchronously
-                    // --- Re-introducing eager transformations with MP4 format ---
+                    public_id: publicId,
+                    notification_url: `${process.env.BACKEND_URL}/api/webhooks/cloudinary`,
                     eager: [
-                        { format: 'mp4', quality: 'auto', crop: 'limit', width: 1280, height: 720 },
-                        // You can add other resolutions/formats here if needed, e.g., for mobile playback
-                        // { format: 'mp4', quality: 'auto', crop: 'limit', width: 640, height: 360 }
+                        { format: 'mp4', quality: 'auto' }
                     ],
-                    eager_async: true, // Perform eager transformations asynchronously
-                    format: 'mp4' // Explicitly set output format to MP4
+                    eager_async: true,
+                    eager_notification_url: `${process.env.BACKEND_URL}/api/webhooks/cloudinary`,
+                    chunk_size: 6000000
                 },
                 (error, result) => {
-                    if (error) {
-                        console.error('Cloudinary upload stream callback error:', error);
-                        return reject(new Error(`Cloudinary upload failed (callback): ${error.message}`));
-                    }
-                    console.log('Cloudinary upload stream callback result:', { secure_url: result.secure_url, public_id: result.public_id, bytes: result.bytes, eager_results: result.eager ? result.eager.length : 0 });
+                    if (error) return reject(error);
                     resolve(result);
                 }
             );
             uploadStream.end(buffer);
         });
 
-        console.log('DEBUG: Full Cloudinary uploadResult object from promise resolution:', JSON.stringify(uploadResult, null, 2));
-
-        if (uploadResult && uploadResult.secure_url) {
-            videoCloudinaryUrl = uploadResult.secure_url;
-        } else {
-            console.error('ERROR: Cloudinary upload result did NOT contain a secure_url, despite callback. Full result:', uploadResult);
-            throw new Error('Cloudinary upload completed, but no secure video URL was returned.');
-        }
-
-        if (uploadResult && uploadResult.public_id) {
-            videoCloudinaryPublicId = uploadResult.public_id;
-        } else {
-            console.error('ERROR: Cloudinary upload result did NOT contain a public_id. Full result:', uploadResult);
-            throw new Error('Cloudinary upload completed, but no public ID was returned.');
-        }
-
-        console.log(`Cloudinary upload successful. URL: ${videoCloudinaryUrl}, Public ID: ${videoCloudinaryPublicId}`);
-
-    } catch (cloudinaryError) {
-        console.error('ERROR: Catch block for direct Cloudinary upload triggered:', cloudinaryError);
-        res.status(500);
-        throw new Error('Server error: Failed to upload video to Cloudinary: ' + cloudinaryError.message);
-    }
-
-    let newVideoRecord;
-    try {
-        newVideoRecord = await Video.create({
-            userId,
-            filename: originalname, // Original filename from client
-            videoName: videoName || originalname,
-            videoUrl: videoCloudinaryUrl, // This will now be set (or error thrown above)
-            filePath: videoCloudinaryPublicId, // Store the Cloudinary public_id
-            status: 'uploaded', // Initial status
-            uploadDate: new Date(),
-        });
-        console.log('Video record created in DB:', newVideoRecord);
-    } catch (dbError) {
-        console.error('Error saving raw video record to DB:', dbError);
-        if (dbError.name === 'ValidationError') {
-            const messages = Object.values(dbError.errors).map(val => val.message);
-            res.status(400);
-            throw new Error(`Video validation failed: ${messages.join(', ')}`);
-        } else {
-            res.status(500);
-            throw new Error('Server error: Could not record video upload due to DB error: ' + dbError.message);
-        }
-    }
-
-    // Send a 202 Accepted response immediately as analysis is asynchronous
-    res.status(202).json({
-        message: 'Video uploaded successfully. Analysis in progress.',
-        videoRecordId: newVideoRecord ? newVideoRecord._id : null,
-        videoUrl: videoCloudinaryUrl,
-        videoName: videoName || originalname
-    });
-
-    // --- ASYNCHRONOUS ANALYSIS START ---
-    // This part runs after the response has been sent to the client.
-    try {
-        console.log(`Starting real analysis for video: ${videoName || originalname} from URL: ${videoCloudinaryUrl}`);
-
-        const transcription = await transcribeAudio(videoCloudinaryUrl);
-        if (transcription.startsWith('[Transcription Failed')) {
-            throw new Error(transcription);
-        }
-        console.log('Completed transcription:', transcription.substring(0, Math.min(transcription.length, 100)) + '...');
-
-        const grammarAnalysis = await analyzeGrammar(transcription);
-        console.log('Completed grammar analysis:', grammarAnalysis);
-
-        const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
-        console.log('Completed Gemini analysis:', geminiAnalysis);
-
-        const newAnalysis = await Analysis.create({
-            userId: userId,
-            videoRecordId: newVideoRecord._id, // Link analysis to the video record
-            videoUrl: videoCloudinaryUrl,
-            videoPath: videoCloudinaryPublicId, // Consistent naming for public_id
-            videoName: videoName || originalname,
-            date: new Date(),
-            transcription: transcription,
-            overallScore: geminiAnalysis.overallScore,
-            grammarErrors: grammarAnalysis.issues.map(issue => ({
-                message: issue.message,
-                text: issue.context.text,
-                offset: issue.context.offset,
-                length: issue.context.length,
-                replacements: issue.replacements.map(rep => rep.value)
-            })),
-            fillerWords: geminiAnalysis.fillerWords,
-            speakingRate: geminiAnalysis.speakingRate,
-            fluencyFeedback: geminiAnalysis.fluencyFeedback,
-            sentiment: geminiAnalysis.sentiment,
-            areasForImprovement: geminiAnalysis.areasForImprovement,
+        console.log('Cloudinary upload initiated:', {
+            public_id: uploadResult.public_id,
+            status: uploadResult.status
         });
 
-        // Update the video record with analysis details and status
-        if (newVideoRecord) {
-            newVideoRecord.status = 'analyzed';
-            newVideoRecord.analysisId = newAnalysis._id;
-            await newVideoRecord.save();
-        }
+        // Respond immediately - don't wait for processing
+        res.status(202).json({
+            message: 'Video upload started. Processing may take a few minutes.',
+            videoId: newVideoRecord._id,
+            status: 'uploading'
+        });
 
-        console.log(`Analysis complete and saved for video: ${videoName || originalname}. Analysis ID: ${newAnalysis._id}`);
-
-    } catch (analysisError) {
-        console.error(`Error analyzing or saving analysis for video ${originalname}:`, analysisError);
-        if (newVideoRecord) {
-            newVideoRecord.status = 'failed';
-            newVideoRecord.errorMessage = analysisError.message;
-            await newVideoRecord.save();
-        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ 
+            error: 'Failed to start upload process',
+            details: error.message 
+        });
     }
 });
 
-// @desc    Get all videos for a logged-in user
-// @route   GET /api/user/videos
-// @access  Private
-const getUserVideos = asyncHandler(async (req, res) => {
-    const videos = await Video.find({ userId: req.user._id }).sort({ uploadDate: -1 });
-    res.status(200).json({ videos });
+// Add webhook handler
+const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
+    try {
+        // Verify webhook signature (important for security)
+        const signature = req.headers['x-cld-signature'];
+        const payload = JSON.stringify(req.body);
+        const expectedSignature = crypto
+            .createHash('sha1')
+            .update(payload + process.env.CLOUDINARY_API_SECRET)
+            .digest('hex');
+
+        if (signature !== expectedSignature) {
+            console.warn('Invalid webhook signature');
+            return res.status(401).send('Unauthorized');
+        }
+
+        const event = req.body;
+        console.log('Received Cloudinary webhook:', event);
+
+        // Handle different notification types
+        if (event.notification_type === 'eager') {
+            const publicId = event.public_id;
+            const secureUrl = event.eager[0]?.secure_url;
+
+            if (!secureUrl) {
+                console.error('No secure_url in eager notification');
+                return res.status(400).send('Missing secure_url');
+            }
+
+            // Update video record with URL
+            const video = await Video.findOneAndUpdate(
+                { publicId },
+                { 
+                    status: 'ready',
+                    videoUrl: secureUrl 
+                },
+                { new: true }
+            );
+
+            if (!video) {
+                console.error('Video not found for publicId:', publicId);
+                return res.status(404).send('Video not found');
+            }
+
+            console.log(`Video ${publicId} is now ready at URL: ${secureUrl}`);
+
+            // Start analysis pipeline
+            try {
+                const transcription = await transcribeAudio(secureUrl);
+                const grammarAnalysis = await analyzeGrammar(transcription);
+                const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
+
+                const newAnalysis = await Analysis.create({
+                    userId: video.userId,
+                    videoRecordId: video._id,
+                    videoUrl: secureUrl,
+                    transcription,
+                    overallScore: geminiAnalysis.overallScore,
+                    grammarErrors: grammarAnalysis.issues,
+                    fillerWords: geminiAnalysis.fillerWords,
+                    speakingRate: geminiAnalysis.speakingRate,
+                    fluencyFeedback: geminiAnalysis.fluencyFeedback,
+                    sentiment: geminiAnalysis.sentiment,
+                    areasForImprovement: geminiAnalysis.areasForImprovement
+                });
+
+                await Video.findByIdAndUpdate(video._id, {
+                    status: 'analyzed',
+                    analysisId: newAnalysis._id
+                });
+
+                console.log(`Analysis complete for video ${publicId}`);
+            } catch (analysisError) {
+                console.error('Analysis failed:', analysisError);
+                await Video.findByIdAndUpdate(video._id, {
+                    status: 'failed',
+                    errorMessage: analysisError.message
+                });
+            }
+        }
+
+        res.status(200).send('Webhook processed');
+    } catch (error) {
+        console.error('Webhook processing error:', error);
+        res.status(500).send('Internal server error');
+    }
+});
+
+// Add status check endpoint
+const checkVideoStatus = asyncHandler(async (req, res) => {
+    const video = await Video.findById(req.params.videoId);
+    if (!video) {
+        return res.status(404).json({ error: 'Video not found' });
+    }
+    res.json({
+        status: video.status,
+        videoUrl: video.videoUrl,
+        analysisId: video.analysisId,
+        error: video.errorMessage
+    });
 });
 
 module.exports = {
     uploadVideo,
-    getUserVideos,
+    handleCloudinaryWebhook,
+    checkVideoStatus,
+    getUserVideos
 };
