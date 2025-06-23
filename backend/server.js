@@ -64,7 +64,7 @@ app.get('/', (req, res) => {
 
 // Error handling middleware (should be last)
 app.use(errorHandler);
-app.use('/api/videos', videoRoutes);
+app.use('/api/videos', video);
 
 // Add these near your other route imports
 const webhookRoutes = require('./routes/webhookRoutes');
