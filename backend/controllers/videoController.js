@@ -133,7 +133,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
                 {
                     resource_type: 'video',
                     public_id: `comm-analyzer/videos/${videoRecord._id}`,
-                    notification_url: `${process.env.BACKEND_URL}/api/webhooks/cloudinary`,
+                    notification_url: `${process.env.RENDER_BACKEND_URL}/api/webhooks/cloudinary`,
                     eager: [{ format: 'mp4', quality: 'auto' }],
                     eager_async: true,
                     chunk_size: 6000000
