@@ -52,62 +52,88 @@ function MainApplication() {
     };
 
     const checkVideoStatus = async (videoId) => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) throw new Error('User not authenticated');
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('User not authenticated');
 
-            const response = await axios.get(`${RENDER_BACKEND_URL}/api/videos/status/${videoId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            return response.data;
+        const response = await axios.get(`${RENDER_BACKEND_URL}/api/videos/status/${videoId}`, {
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        // Handle case where endpoint exists but returns 404
+        if (response.status === 404) {
+            throw new Error('Video not found');
+        }
+        
+        return response.data;
+    } catch (error) {
+        console.error('Status check error:', error);
+        
+        // Handle specific error cases
+        if (error.response?.status === 404) {
+            throw new Error('Video not found - please try uploading again');
+        } else if (error.response?.status === 401) {
+            throw new Error('Session expired - please login again');
+        }
+        
+        throw error;
+    }
+};
+
+const startPolling = (videoId, videoName) => {
+    stopPolling();
+    
+    const poll = async () => {
+        try {
+            pollingAttemptsRef.current += 1;
+            
+            if (pollingAttemptsRef.current > MAX_POLLING_ATTEMPTS) {
+                stopPolling();
+                setMessage('Analysis is taking longer than expected. Please check back later.');
+                setIsError(true);
+                return;
+            }
+
+            const statusResponse = await checkVideoStatus(videoId);
+            setMessage(`Processing video (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
+
+            if (statusResponse?.status === 'analyzed') {
+                stopPolling();
+                navigate('/app/results', { 
+                    state: { 
+                        videoRecordId: videoId,
+                        videoUrl: statusResponse.videoUrl,
+                        videoName,
+                        analysisId: statusResponse.analysisId
+                    } 
+                });
+            } else if (statusResponse?.status === 'failed') {
+                stopPolling();
+                setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
+                setIsError(true);
+            }
         } catch (error) {
-            console.error('Status check error:', error);
-            throw error;
+            console.error('Polling error:', error);
+            
+            if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS || 
+                error.message.includes('not found') || 
+                error.message.includes('expired')) {
+                stopPolling();
+                setMessage(error.message);
+                setIsError(true);
+            }
         }
     };
 
-    const startPolling = (videoId, videoName) => {
-        stopPolling();
-        pollingRef.current = setInterval(async () => {
-            try {
-                pollingAttemptsRef.current += 1;
-                
-                if (pollingAttemptsRef.current > MAX_POLLING_ATTEMPTS) {
-                    stopPolling();
-                    setMessage('Analysis is taking longer than expected. Please check back later.');
-                    setIsError(true);
-                    return;
-                }
-
-                const statusResponse = await checkVideoStatus(videoId);
-                setMessage(`Processing video (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
-
-                if (statusResponse.status === 'analyzed') {
-                    stopPolling();
-                    navigate('/app/results', { 
-                        state: { 
-                            videoRecordId: videoId,
-                            videoUrl: statusResponse.videoUrl,
-                            videoName,
-                            analysisId: statusResponse.analysisId
-                        } 
-                    });
-                } else if (statusResponse.status === 'failed') {
-                    stopPolling();
-                    setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
-                    setIsError(true);
-                }
-            } catch (error) {
-                console.error('Polling error:', error);
-                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
-                    stopPolling();
-                    setMessage('Failed to check status. Please refresh the page.');
-                    setIsError(true);
-                }
-            }
-        }, POLLING_INTERVAL);
-    };
-
+    // Initial immediate poll
+    poll();
+    
+    // Set up interval for subsequent polls
+    pollingRef.current = setInterval(poll, POLLING_INTERVAL);
+};
     const handleUploadAndAnalyze = async (fileToUpload, nameForVideo) => {
         setMessage('');
         setIsError(false);
