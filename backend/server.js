@@ -46,6 +46,21 @@ const limiter = rateLimit({
     max: 10 
 });
 
+// In your server.js or a separate service
+const checkStalledVideos = async () => {
+    const stalledVideos = await Video.find({
+        status: { $in: ['processing', 'processed'] },
+        updatedAt: { $lt: new Date(Date.now() - 30 * 60 * 1000) } // 30 minutes old
+    });
+    
+    for (const video of stalledVideos) {
+        console.log(`Checking stalled video: ${video._id}`);
+        // Implement your verification and recovery logic here
+    }
+};
+
+// Run every 30 minutes
+setInterval(checkStalledVideos, 30 * 60 * 1000);
 // Apply rate limiting to specific routes
 app.use('/api/feedback', limiter); 
 app.use('/api/feedback', require('./routes/feedbackRoutes')); 
