@@ -1,7 +1,8 @@
+const cloudinary = require('cloudinary').v2;
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-const cloudinary = require('cloudinary').v2;
+const crypto = require('crypto');
 
 // Cloudinary configuration
 cloudinary.config({
@@ -12,19 +13,10 @@ cloudinary.config({
 
 // AssemblyAI setup
 const { AssemblyAI } = require('assemblyai');
+const assemblyAIClient = process.env.ASSEMBLYAI_API_KEY 
+    ? new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY })
+    : null;
 
-// Initialize AssemblyAI client
-let assemblyAIClient;
-if (process.env.ASSEMBLYAI_API_KEY) {
-    assemblyAIClient = new AssemblyAI({
-        apiKey: process.env.ASSEMBLYAI_API_KEY,
-    });
-    console.log('AssemblyAI client initialized.');
-} else {
-    console.error('ASSEMBLYAI_API_KEY environment variable is not set. Speech-to-Text will not function.');
-}
-
-// Gemini API key (for LLM analysis, ensure this is still set in Render as GEMINI_API_KEY)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // LanguageTool grammar analysis (No changes)
@@ -173,22 +165,18 @@ const analyzeSpeechWithGemini = async (transcription) => {
         throw new Error('Failed to analyze speech with LLM: ' + error.message);
     }
 };
-// ... (keep your existing helper functions: analyzeGrammar, transcribeAudio, analyzeSpeechWithGemini)
-
+// @desc    Upload a video for analysis
+// @route   POST /api/upload
+// @access  Private
 const uploadVideo = asyncHandler(async (req, res) => {
     if (!req.file || !req.file.buffer) {
         res.status(400);
         throw new Error('No video file buffer received');
     }
 
-    const { originalname, buffer, mimetype } = req.file;
+    const { originalname, buffer } = req.file;
     const { videoName } = req.body;
     const userId = req.user._id;
-
-    if (!videoName) {
-        res.status(400);
-        throw new Error('Video name is required');
-    }
 
     // Generate unique public_id
     const publicId = `comm-analyzer/videos/video-${userId}-${Date.now()}`;
@@ -199,9 +187,8 @@ const uploadVideo = asyncHandler(async (req, res) => {
             userId,
             filename: originalname,
             videoName,
-            publicId, // Store Cloudinary public_id
-            status: 'uploading',
-            uploadDate: new Date()
+            publicId,
+            status: 'uploading'
         });
 
         // Upload to Cloudinary with webhook notification
@@ -211,9 +198,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
                     resource_type: 'video',
                     public_id: publicId,
                     notification_url: `${process.env.BACKEND_URL}/api/webhooks/cloudinary`,
-                    eager: [
-                        { format: 'mp4', quality: 'auto' }
-                    ],
+                    eager: [{ format: 'mp4', quality: 'auto' }],
                     eager_async: true,
                     eager_notification_url: `${process.env.BACKEND_URL}/api/webhooks/cloudinary`,
                     chunk_size: 6000000
@@ -224,11 +209,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
                 }
             );
             uploadStream.end(buffer);
-        });
-
-        console.log('Cloudinary upload initiated:', {
-            public_id: uploadResult.public_id,
-            status: uploadResult.status
         });
 
         // Respond immediately - don't wait for processing
@@ -247,10 +227,12 @@ const uploadVideo = asyncHandler(async (req, res) => {
     }
 });
 
-// Add webhook handler
+// @desc    Handle Cloudinary webhook notifications
+// @route   POST /api/webhooks/cloudinary
+// @access  Public (but secured with signature verification)
 const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     try {
-        // Verify webhook signature (important for security)
+        // Verify webhook signature
         const signature = req.headers['x-cld-signature'];
         const payload = JSON.stringify(req.body);
         const expectedSignature = crypto
@@ -259,22 +241,14 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             .digest('hex');
 
         if (signature !== expectedSignature) {
-            console.warn('Invalid webhook signature');
             return res.status(401).send('Unauthorized');
         }
 
         const event = req.body;
-        console.log('Received Cloudinary webhook:', event);
 
-        // Handle different notification types
         if (event.notification_type === 'eager') {
             const publicId = event.public_id;
             const secureUrl = event.eager[0]?.secure_url;
-
-            if (!secureUrl) {
-                console.error('No secure_url in eager notification');
-                return res.status(400).send('Missing secure_url');
-            }
 
             // Update video record with URL
             const video = await Video.findOneAndUpdate(
@@ -287,11 +261,8 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             );
 
             if (!video) {
-                console.error('Video not found for publicId:', publicId);
                 return res.status(404).send('Video not found');
             }
-
-            console.log(`Video ${publicId} is now ready at URL: ${secureUrl}`);
 
             // Start analysis pipeline
             try {
@@ -318,9 +289,7 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
                     analysisId: newAnalysis._id
                 });
 
-                console.log(`Analysis complete for video ${publicId}`);
             } catch (analysisError) {
-                console.error('Analysis failed:', analysisError);
                 await Video.findByIdAndUpdate(video._id, {
                     status: 'failed',
                     errorMessage: analysisError.message
@@ -335,7 +304,9 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     }
 });
 
-// Add status check endpoint
+// @desc    Get video status
+// @route   GET /api/videos/status/:videoId
+// @access  Private
 const checkVideoStatus = asyncHandler(async (req, res) => {
     const video = await Video.findById(req.params.videoId);
     if (!video) {
@@ -347,6 +318,16 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
         analysisId: video.analysisId,
         error: video.errorMessage
     });
+});
+
+// @desc    Get all videos for a user
+// @route   GET /api/videos/user
+// @access  Private
+const getUserVideos = asyncHandler(async (req, res) => {
+    const videos = await Video.find({ userId: req.user._id })
+        .sort({ createdAt: -1 })
+        .select('-__v');
+    res.status(200).json(videos);
 });
 
 module.exports = {
