@@ -90,40 +90,57 @@ const startPolling = (videoId, videoName) => {
         try {
             pollingAttemptsRef.current += 1;
             
-            if (pollingAttemptsRef.current > MAX_POLLING_ATTEMPTS) {
-                stopPolling();
-                setMessage('Analysis is taking longer than expected. Please check back later.');
-                setIsError(true);
-                return;
-            }
-
             const statusResponse = await checkVideoStatus(videoId);
-            setMessage(`Processing video (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
-
-            if (statusResponse?.status === 'analyzed') {
-                stopPolling();
-                navigate('/app/results', { 
-                    state: { 
-                        videoRecordId: videoId,
-                        videoUrl: statusResponse.videoUrl,
-                        videoName,
-                        analysisId: statusResponse.analysisId
-                    } 
-                });
-            } else if (statusResponse?.status === 'failed') {
-                stopPolling();
-                setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
-                setIsError(true);
+            
+            // Handle different status cases
+            switch (statusResponse.status) {
+                case 'analyzed':
+                    stopPolling();
+                    navigate('/app/results', { 
+                        state: { 
+                            videoRecordId: videoId,
+                            videoUrl: statusResponse.videoUrl,
+                            videoName,
+                            analysisId: statusResponse.analysisId
+                        } 
+                    });
+                    break;
+                    
+                case 'failed':
+                    stopPolling();
+                    setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
+                    setIsError(true);
+                    break;
+                    
+                case 'processed':
+                    // Reset attempt counter when processing starts
+                    pollingAttemptsRef.current = 1;
+                    setMessage(`Video processing (${Math.min(pollingAttemptsRef.current, MAX_POLLING_ATTEMPTS)}/${MAX_POLLING_ATTEMPTS})...`);
+                    break;
+                    
+                default:
+                    setMessage(`Video upload processing (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
             }
+
+            if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
+                stopPolling();
+                setMessage('Analysis is taking longer than expected. We\'ll notify you when it\'s ready.');
+                setIsError(false); // Not really an error state
+                
+                // Optionally implement a notification system here
+            }
+            
         } catch (error) {
             console.error('Polling error:', error);
             
-            if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS || 
-                error.message.includes('not found') || 
-                error.message.includes('expired')) {
+            if (error.message.includes('not found')) {
                 stopPolling();
-                setMessage(error.message);
+                setMessage('Video not found - please try uploading again');
                 setIsError(true);
+            } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
+                stopPolling();
+                setMessage('System busy - we\'ll notify you when your analysis is ready');
+                setIsError(false);
             }
         }
     };
