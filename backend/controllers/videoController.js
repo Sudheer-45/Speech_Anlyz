@@ -301,7 +301,9 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
 
         res.json({
             status: video.status,
-            videoUrl: video.videoUrl,
+            videoUrl: video.videoUrl,  // This is the Cloudinary URL
+            videoPublicId: video.publicId, // Optional: if you need the Cloudinary ID
+            videoName: video.videoName,
             analysis: video.analysisId,
             error: video.errorMessage,
             timestamps: {
