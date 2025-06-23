@@ -128,26 +128,32 @@ const uploadVideo = asyncHandler(async (req, res) => {
         const { videoName } = req.body;
         const userId = req.user._id;
 
+        // Generate a temporary publicId that will be updated after Cloudinary upload
+        const tempPublicId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
         console.log('Creating video record...');
         const videoRecord = await Video.create({
             userId,
             filename: originalname,
             videoName: videoName || originalname,
+            publicId: tempPublicId, // Set temporary publicId
             status: 'uploading',
             mimetype
         });
 
         console.log('Uploading to Cloudinary...');
         const uploadResult = await new Promise((resolve, reject) => {
+            const finalPublicId = `comm-analyzer/videos/${videoRecord._id}`;
+            
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
                     resource_type: 'video',
-                    public_id: `comm-analyzer/videos/${videoRecord._id}`,
+                    public_id: finalPublicId,
                     notification_url: `${process.env.RENDER_BACKEND_URL}/api/webhooks/cloudinary`,
                     eager: [{ format: 'mp4', quality: 'auto' }],
                     eager_async: true,
                     chunk_size: 6000000,
-                    timeout: 120000 // 2 minute timeout
+                    timeout: 120000
                 },
                 (error, result) => {
                     if (error) {
@@ -167,7 +173,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
         console.log('Updating video record with Cloudinary info...');
         await Video.findByIdAndUpdate(videoRecord._id, {
-            publicId: uploadResult.public_id,
+            publicId: uploadResult.public_id, // Update with final publicId
             status: 'processing',
             bytes: uploadResult.bytes
         });
@@ -183,6 +189,15 @@ const uploadVideo = asyncHandler(async (req, res) => {
             message: error.message,
             stack: error.stack
         });
+        
+        // If we created a video record but failed during upload, mark it as failed
+        if (videoRecord) {
+            await Video.findByIdAndUpdate(videoRecord._id, {
+                status: 'failed',
+                errorMessage: error.message
+            });
+        }
+
         res.status(500).json({ 
             error: 'Upload failed',
             details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
