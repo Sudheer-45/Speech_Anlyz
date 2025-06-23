@@ -8,6 +8,7 @@ const cors = require('cors');
 const path = require('path'); 
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
+const videoRoutes = require('./routes/video');
 
 // Load env vars
 dotenv.config(); 
@@ -64,7 +65,7 @@ app.get('/', (req, res) => {
 
 // Error handling middleware (should be last)
 app.use(errorHandler);
-app.use('/api/videos', video);
+app.use('/api/videos', videoRoutes);
 
 // Add these near your other route imports
 const webhookRoutes = require('./routes/webhookRoutes');
