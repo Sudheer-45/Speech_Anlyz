@@ -1,52 +1,45 @@
-// backend/models/Video.js
 const mongoose = require('mongoose');
 
-const VideoSchema = new mongoose.Schema(
-  {
+const VideoSchema = new mongoose.Schema({
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
     },
-    filename: { // Original name of the uploaded video file
-      type: String,
-      required: true,
+    filename: {
+        type: String,
+        required: true,
     },
-    // This `videoUrl` field will now store the persistent Cloudinary URL for the video
+    videoName: {
+        type: String,
+        required: true,
+    },
+    publicId: {
+        type: String,
+        required: true,
+        unique: true
+    },
     videoUrl: {
-      type: String,
-      required: true,
+        type: String,
     },
-    // `filePath` can be kept as a duplicate of videoUrl for consistency or removed if not strictly needed
-    // For now, we'll make it store the Cloudinary URL too, just to avoid breaking existing code
-    filePath: { 
-      type: String,
-      required: true,
+    status: {
+        type: String,
+        enum: ['uploading', 'processing', 'ready', 'analyzed', 'failed'],
+        default: 'uploading'
     },
     uploadDate: {
-      type: Date,
-      default: Date.now,
+        type: Date,
+        default: Date.now,
     },
-    // Status of the video processing (e.g., 'uploaded', 'processing', 'analyzed', 'failed')
-    status: {
-      type: String,
-      default: 'uploaded',
+    analysisId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Analysis',
     },
-    // Reference to the associated Analysis document, for retrieving detailed results
-    analysisId: { 
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Analysis',
-      required: false, // Not required immediately after upload, only after analysis
-    },
-    // Field to store any error messages during analysis or processing
     errorMessage: {
-      type: String,
-      required: false,
+        type: String,
     }
-  },
-  {
-    timestamps: true, // Adds createdAt and updatedAt fields automatically
-  }
-);
+}, {
+    timestamps: true,
+});
 
 module.exports = mongoose.model('Video', VideoSchema);
