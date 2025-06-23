@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const { protect } = require('../middleware/authMiddleware');
-const { 
-    uploadVideo, 
+const asyncHandler = require('express-async-handler');
+const {
+    uploadVideo,
     getUserVideos,
     checkVideoStatus
 } = require('../controllers/videoController');
-const multer = require('multer');
 
 // Configure Multer memory storage
 const storage = multer.memoryStorage();
