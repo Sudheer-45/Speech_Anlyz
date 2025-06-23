@@ -207,11 +207,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
 const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     try {
-        console.log('Received Cloudinary webhook:', {
-            body: req.body,
-            headers: req.headers
-        });
-
         // Verify signature
         const signature = crypto
             .createHash('sha1')
@@ -227,11 +222,13 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
         const secureUrl = eager?.[0]?.secure_url;
 
         if (!secureUrl) {
-            console.error('Missing secure_url in webhook payload');
+            console.error('Webhook missing secure_url');
             return res.status(400).send('Missing video URL');
         }
 
-        console.log('Processing webhook for:', public_id);
+        console.log(`Processing webhook for: ${public_id}`);
+        
+        // Update video status to 'processed' immediately
         const video = await Video.findOneAndUpdate(
             { publicId: public_id },
             { 
@@ -247,46 +244,52 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             return res.status(404).send('Video not found');
         }
 
-        console.log('Starting analysis for video:', video._id);
-        try {
-            const transcription = await transcribeAudio(secureUrl);
-            const grammar = await analyzeGrammar(transcription);
-            const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
-
-            const analysis = await Analysis.create({
-                videoRecordId: video._id,
-                userId: video.userId,
-                transcription,
-                ...geminiAnalysis,
-                grammarScore: grammar.score,
-                grammarIssues: grammar.issues
+        console.log(`Starting analysis for video: ${video._id}`);
+        
+        // Process analysis in background
+        processAnalysis(video, secureUrl)
+            .catch(err => {
+                console.error('Analysis processing error:', err);
             });
 
-            await Video.findByIdAndUpdate(video._id, {
-                status: 'analyzed',
-                analysisId: analysis._id,
-                analyzedAt: new Date()
-            });
-
-            console.log('Analysis completed for video:', video._id);
-        } catch (analysisError) {
-            console.error('Analysis failed:', analysisError);
-            await Video.findByIdAndUpdate(video._id, {
-                status: 'failed',
-                errorMessage: analysisError.message
-            });
-        }
-
-        res.status(200).send('Webhook processed');
+        res.status(200).send('Webhook received');
     } catch (error) {
-        console.error('Webhook processing error:', {
-            message: error.message,
-            stack: error.stack
-        });
+        console.error('Webhook processing error:', error);
         res.status(500).send('Internal server error');
     }
 });
 
+// Separate function to handle analysis processing
+const processAnalysis = async (video, videoUrl) => {
+    try {
+        const transcription = await transcribeAudio(videoUrl);
+        const grammar = await analyzeGrammar(transcription);
+        const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
+
+        const analysis = await Analysis.create({
+            videoRecordId: video._id,
+            userId: video.userId,
+            transcription,
+            ...geminiAnalysis,
+            grammarScore: grammar.score,
+            grammarIssues: grammar.issues
+        });
+
+        await Video.findByIdAndUpdate(video._id, {
+            status: 'analyzed',
+            analysisId: analysis._id,
+            analyzedAt: new Date()
+        });
+
+        console.log(`Analysis completed for video: ${video._id}`);
+    } catch (error) {
+        console.error(`Analysis failed for video ${video._id}:`, error);
+        await Video.findByIdAndUpdate(video._id, {
+            status: 'failed',
+            errorMessage: error.message
+        });
+    }
+};
 const checkVideoStatus = asyncHandler(async (req, res) => {
     try {
         const video = await Video.findById(req.params.videoId)
