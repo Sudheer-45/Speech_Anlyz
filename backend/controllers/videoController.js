@@ -12,6 +12,11 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Verify critical environment variables
+if (!process.env.RENDER_BACKEND_URL || !process.env.CLOUDINARY_CLOUD_NAME) {
+    throw new Error('Missing required environment variables');
+}
+
 // AssemblyAI setup
 const { AssemblyAI } = require('assemblyai');
 const assemblyAIClient = process.env.ASSEMBLYAI_API_KEY 
@@ -87,7 +92,6 @@ const analyzeSpeechWithGemini = async (transcription) => {
         }
 
         const result = await response.json();
-        // Parse and return the analysis results
         return parseGeminiResponse(result);
     } catch (error) {
         console.error('Gemini analysis error:', error);
@@ -109,16 +113,22 @@ const parseGeminiResponse = (result) => {
 
 // Controller Functions
 const uploadVideo = asyncHandler(async (req, res) => {
+    console.log('Upload request received', {
+        file: req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'none',
+        body: req.body
+    });
+
     if (!req.file?.buffer) {
+        console.error('No file buffer received');
         return res.status(400).json({ error: 'No video file received' });
     }
 
-    const { originalname, buffer, mimetype } = req.file;
-    const { videoName } = req.body;
-    const userId = req.user._id;
-
     try {
-        // Create initial video record
+        const { originalname, buffer, mimetype } = req.file;
+        const { videoName } = req.body;
+        const userId = req.user._id;
+
+        console.log('Creating video record...');
         const videoRecord = await Video.create({
             userId,
             filename: originalname,
@@ -127,7 +137,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
             mimetype
         });
 
-        // Upload to Cloudinary
+        console.log('Uploading to Cloudinary...');
         const uploadResult = await new Promise((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
@@ -136,17 +146,30 @@ const uploadVideo = asyncHandler(async (req, res) => {
                     notification_url: `${process.env.RENDER_BACKEND_URL}/api/webhooks/cloudinary`,
                     eager: [{ format: 'mp4', quality: 'auto' }],
                     eager_async: true,
-                    chunk_size: 6000000
+                    chunk_size: 6000000,
+                    timeout: 120000 // 2 minute timeout
                 },
-                (error, result) => error ? reject(error) : resolve(result)
+                (error, result) => {
+                    if (error) {
+                        console.error('Cloudinary upload error:', error);
+                        reject(error);
+                    } else {
+                        console.log('Cloudinary upload success:', {
+                            public_id: result.public_id,
+                            bytes: result.bytes
+                        });
+                        resolve(result);
+                    }
+                }
             );
             uploadStream.end(buffer);
         });
 
-        // Update with initial Cloudinary info
+        console.log('Updating video record with Cloudinary info...');
         await Video.findByIdAndUpdate(videoRecord._id, {
             publicId: uploadResult.public_id,
-            status: 'processing'
+            status: 'processing',
+            bytes: uploadResult.bytes
         });
 
         res.status(202).json({
@@ -154,17 +177,26 @@ const uploadVideo = asyncHandler(async (req, res) => {
             videoId: videoRecord._id,
             status: 'processing'
         });
+
     } catch (error) {
-        console.error('Upload error:', error);
+        console.error('Upload error:', {
+            message: error.message,
+            stack: error.stack
+        });
         res.status(500).json({ 
             error: 'Upload failed',
-            details: error.message 
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
         });
     }
 });
 
 const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     try {
+        console.log('Received Cloudinary webhook:', {
+            body: req.body,
+            headers: req.headers
+        });
+
         // Verify signature
         const signature = crypto
             .createHash('sha1')
@@ -172,29 +204,37 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             .digest('hex');
         
         if (signature !== req.headers['x-cld-signature']) {
+            console.error('Invalid webhook signature');
             return res.status(401).send('Unauthorized');
         }
 
         const { public_id, eager } = req.body;
-        if (!eager?.[0]?.secure_url) {
+        const secureUrl = eager?.[0]?.secure_url;
+
+        if (!secureUrl) {
+            console.error('Missing secure_url in webhook payload');
             return res.status(400).send('Missing video URL');
         }
 
-        // Update video record
+        console.log('Processing webhook for:', public_id);
         const video = await Video.findOneAndUpdate(
             { publicId: public_id },
             { 
                 status: 'processed',
-                videoUrl: eager[0].secure_url 
+                videoUrl: secureUrl,
+                processingCompleteAt: new Date() 
             },
             { new: true }
         );
 
-        if (!video) return res.status(404).send('Video not found');
+        if (!video) {
+            console.error('Video not found for public_id:', public_id);
+            return res.status(404).send('Video not found');
+        }
 
-        // Start analysis
+        console.log('Starting analysis for video:', video._id);
         try {
-            const transcription = await transcribeAudio(video.videoUrl);
+            const transcription = await transcribeAudio(secureUrl);
             const grammar = await analyzeGrammar(transcription);
             const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
 
@@ -209,10 +249,13 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
 
             await Video.findByIdAndUpdate(video._id, {
                 status: 'analyzed',
-                analysisId: analysis._id
+                analysisId: analysis._id,
+                analyzedAt: new Date()
             });
 
+            console.log('Analysis completed for video:', video._id);
         } catch (analysisError) {
+            console.error('Analysis failed:', analysisError);
             await Video.findByIdAndUpdate(video._id, {
                 status: 'failed',
                 errorMessage: analysisError.message
@@ -221,7 +264,10 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
 
         res.status(200).send('Webhook processed');
     } catch (error) {
-        console.error('Webhook error:', error);
+        console.error('Webhook processing error:', {
+            message: error.message,
+            stack: error.stack
+        });
         res.status(500).send('Internal server error');
     }
 });
@@ -239,10 +285,19 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
             status: video.status,
             videoUrl: video.videoUrl,
             analysis: video.analysisId,
-            error: video.errorMessage
+            error: video.errorMessage,
+            timestamps: {
+                uploadedAt: video.createdAt,
+                processedAt: video.processingCompleteAt,
+                analyzedAt: video.analyzedAt
+            }
         });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to check status' });
+        console.error('Status check error:', error);
+        res.status(500).json({ 
+            error: 'Failed to check status',
+            details: process.env.NODE_ENV === 'development' ? error.message : null
+        });
     }
 });
 
@@ -250,12 +305,16 @@ const getUserVideos = asyncHandler(async (req, res) => {
     try {
         const videos = await Video.find({ userId: req.user._id })
             .sort('-createdAt')
-            .select('filename videoName status createdAt')
+            .select('filename videoName status createdAt bytes duration')
             .limit(20);
             
         res.json(videos);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch videos' });
+        console.error('Failed to fetch user videos:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch videos',
+            details: process.env.NODE_ENV === 'development' ? error.message : null
+        });
     }
 });
 
