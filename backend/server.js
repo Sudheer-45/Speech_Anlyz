@@ -65,6 +65,12 @@ app.get('/', (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
+// Add these near your other route imports
+const webhookRoutes = require('./routes/webhookRoutes');
+
+// Add this with your other app.use() calls
+app.use('/api/webhooks', webhookRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 
