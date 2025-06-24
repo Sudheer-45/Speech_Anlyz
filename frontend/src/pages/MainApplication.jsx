@@ -13,8 +13,8 @@ const videoConstraints = {
 };
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
-const POLLING_INTERVAL = 5000; // 5 seconds (reduced from 3s to prevent rate limiting)
-const MAX_POLLING_ATTEMPTS = 30; // ~2.5 minutes timeout (increased from 1 minute)
+const POLLING_INTERVAL = 5000; // 5 seconds
+const MAX_POLLING_ATTEMPTS = 36; // 3 minutes timeout (36 * 5s)
 
 function MainApplication() {
     const navigate = useNavigate();
@@ -37,6 +37,7 @@ function MainApplication() {
     const pollingRef = useRef(null);
     const pollingAttemptsRef = useRef(0);
     const [analysisProgress, setAnalysisProgress] = useState(0);
+    const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
 
     const formatTime = (totalSeconds) => {
         const minutes = Math.floor(totalSeconds / 60);
@@ -51,6 +52,7 @@ function MainApplication() {
         }
         pollingAttemptsRef.current = 0;
         setAnalysisProgress(0);
+        setEstimatedTimeRemaining(null);
     };
 
     const checkVideoStatus = async (videoId) => {
@@ -85,35 +87,41 @@ function MainApplication() {
 
     const startPolling = (videoId, videoName) => {
         stopPolling();
+        const startTime = Date.now();
         
         const poll = async () => {
             try {
                 pollingAttemptsRef.current += 1;
                 const statusResponse = await checkVideoStatus(videoId);
                 
-                // Calculate progress based on status
+                // Calculate progress and estimated time
                 let progress = 0;
+                let stageMultiplier = 1;
+                let stageMessage = '';
+                
                 switch (statusResponse.status) {
                     case 'uploading':
-                        progress = 10;
+                        progress = 15;
+                        stageMultiplier = 1.2;
+                        stageMessage = 'Uploading video';
                         break;
-                    case 'processed':
+                    case 'processing':
                         progress = 30;
+                        stageMultiplier = 1.5;
+                        stageMessage = 'Processing video';
                         break;
                     case 'transcribing':
                         progress = 50;
+                        stageMultiplier = 2;
+                        stageMessage = 'Transcribing audio';
                         break;
                     case 'analyzing':
                         progress = 75;
+                        stageMultiplier = 1;
+                        stageMessage = 'Analyzing content with Google AI';
                         break;
                     case 'analyzed':
                         progress = 100;
-                        break;
-                }
-                setAnalysisProgress(progress);
-
-                switch (statusResponse.status) {
-                    case 'analyzed':
                         stopPolling();
                         navigate('/app/results', { 
                             state: { 
@@ -123,21 +131,27 @@ function MainApplication() {
                                 analysisId: statusResponse.analysisId
                             } 
                         });
-                        break;
-                        
+                        return;
                     case 'failed':
                         stopPolling();
                         setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
                         setIsError(true);
-                        break;
-                        
-                    default:
-                        setMessage(`Processing (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}): ${statusResponse.message || statusResponse.status}`);
+                        return;
                 }
+
+                setAnalysisProgress(progress);
+                
+                // Calculate estimated time remaining
+                const elapsed = (Date.now() - startTime) / 1000;
+                const estimatedTotal = elapsed / (progress / 100);
+                const remaining = Math.max(0, Math.round((estimatedTotal - elapsed) / 60);
+                setEstimatedTimeRemaining(remaining);
+
+                setMessage(`${stageMessage} (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}) - ~${remaining} min remaining`);
 
                 if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
                     stopPolling();
-                    setMessage('Analysis is taking longer than expected. We\'ll notify you when it\'s ready.');
+                    setMessage('Analysis is taking longer than expected. We\'ll notify you when complete.');
                     setIsError(false);
                 }
                 
@@ -150,7 +164,7 @@ function MainApplication() {
                     setIsError(true);
                 } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
                     stopPolling();
-                    setMessage('System busy - we\'ll notify you when your analysis is ready');
+                    setMessage('System busy - we\'ll notify you when complete');
                     setIsError(false);
                 }
             }
@@ -194,7 +208,7 @@ function MainApplication() {
 
             const { videoId, message: responseMessage } = uploadResponse.data;
             
-            setMessage(responseMessage || 'Video uploaded. Processing may take a few minutes...');
+            setMessage(responseMessage || 'Video uploaded. Analysis in progress...');
             cleanupAfterUpload();
             startPolling(videoId, nameForVideo || fileToUpload.name);
 
@@ -206,7 +220,153 @@ function MainApplication() {
         }
     };
 
-    // ... (keep all other helper functions the same: cleanupAfterUpload, handleUploadError, etc.)
+    const cleanupAfterUpload = () => {
+        setUploadedFile(null);
+        setRecordedVideoBlob(null);
+        if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
+        setRecordedVideoURL('');
+        recordedChunksRef.current = [];
+        setShowRecordedControls(false);
+        setVideoName('');
+    };
+
+    const handleUploadError = (error) => {
+        const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Video upload failed. Please try again.';
+        setMessage(errorMessage);
+        setIsError(true);
+        console.error('Upload Error:', error);
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setUploadedFile(file);
+            if (!videoName) setVideoName(file.name.split('.')[0]);
+            resetRecordingState();
+            setMessage('');
+            setIsError(false);
+        }
+    };
+
+    const resetRecordingState = () => {
+        setRecordedVideoBlob(null);
+        if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
+        setRecordedVideoURL('');
+        recordedChunksRef.current = [];
+        setShowRecordedControls(false);
+        setShowWebcam(false);
+        setIsRecording(false);
+        setRecordingAttemptStarted(false);
+        clearInterval(timerIntervalRef.current);
+        setRecordedTime(0);
+    };
+
+    const handleDataAvailable = useCallback(({ data }) => {
+        if (data.size > 0) recordedChunksRef.current.push(data);
+    }, []);
+
+    const handleUserMedia = useCallback((stream) => {
+        setMessage('Camera and microphone ready. Recording started.');
+        setIsError(false);
+
+        recordedChunksRef.current = [];
+        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8' });
+
+        mediaRecorderRef.current.addEventListener('dataavailable', handleDataAvailable);
+        mediaRecorderRef.current.onstop = () => {
+            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+
+            if (blob.size === 0) {
+                setMessage('No video data recorded. Please try again.');
+                setIsError(true);
+                setShowRecordedControls(false);
+                setShowWebcam(false);
+                setRecordingAttemptStarted(false);
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+
+            setRecordedVideoBlob(blob);
+            setRecordedVideoURL(URL.createObjectURL(blob));
+            setShowRecordedControls(true);
+            setMessage('Recording stopped. Preview available.');
+            setIsError(false);
+
+            stream.getTracks().forEach(track => track.stop());
+            setShowWebcam(false);
+            setRecordingAttemptStarted(false);
+        };
+
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+
+        setRecordedTime(0);
+        timerIntervalRef.current = setInterval(() => {
+            setRecordedTime(prev => prev + 1);
+        }, 1000);
+    }, [handleDataAvailable]);
+
+    const handleUserMediaError = useCallback((error) => {
+        console.error('Webcam access error:', error);
+        setMessage(`Camera/mic access failed: ${error.name || error.message}. Check permissions.`);
+        setIsError(true);
+        setIsRecording(false);
+        clearInterval(timerIntervalRef.current);
+        setRecordedTime(0);
+        setShowWebcam(false);
+        setRecordingAttemptStarted(false);
+    }, []);
+
+    const startRecording = useCallback(() => {
+        setMessage('');
+        setIsError(false);
+        setUploadedFile(null);
+        resetRecordingState();
+        setRecordingAttemptStarted(true);
+        setShowWebcam(true);
+    }, []);
+
+    const stopRecording = useCallback(() => {
+        setIsRecording(false);
+        clearInterval(timerIntervalRef.current);
+
+        if (mediaRecorderRef.current?.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+    }, []);
+
+    const handleUploadRecordedVideo = () => {
+        if (recordedVideoBlob) {
+            const defaultName = `recorded_video_${new Date().toISOString().slice(0, 10)}.webm`;
+            const recordedFile = new File([recordedVideoBlob], videoName || defaultName, { type: 'video/webm' });
+            handleUploadAndAnalyze(recordedFile, videoName);
+        } else {
+            setMessage('No recorded video available.');
+            setIsError(true);
+        }
+    };
+
+    const handleRerecord = useCallback(() => {
+        resetRecordingState();
+        setRecordingAttemptStarted(true);
+        setShowWebcam(true);
+        setMessage('');
+        setIsError(false);
+    }, [recordedVideoURL]);
+
+    useEffect(() => {
+        return () => {
+            stopPolling();
+            clearInterval(timerIntervalRef.current);
+            if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
+            if (webcamRef.current?.stream) {
+                webcamRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [recordedVideoURL]);
 
     return (
         <div className="main-app-container">
@@ -216,24 +376,185 @@ function MainApplication() {
                 
                 <div className="website-info">
                     <p>
-                        This platform helps you enhance your communication skills using Google's AI technology.
-                        Upload a video or record directly to receive insights into your speech patterns,
-                        grammar, and overall communication effectiveness.
+                        This platform uses Google's advanced AI to analyze your communication skills.
+                        Upload a video or record directly to receive detailed feedback on your speech patterns,
+                        grammar, and overall effectiveness.
                     </p>
                 </div>
 
-                {/* Progress bar for upload/analysis */}
-                {analysisProgress > 0 && (
-                    <div className="progress-container">
-                        <div 
-                            className="progress-bar" 
-                            style={{ width: `${analysisProgress}%` }}
-                        ></div>
-                        <span className="progress-text">{Math.round(analysisProgress)}%</span>
+                {message && (
+                    <div className={`status-message ${isError ? 'error' : 'info'}`}>
+                        {message}
+                        {estimatedTimeRemaining !== null && !isError && (
+                            <div className="time-estimate">
+                                Estimated time remaining: ~{estimatedTimeRemaining} minute{estimatedTimeRemaining !== 1 ? 's' : ''}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* ... (rest of your JSX remains the same) ... */}
+                {analysisProgress > 0 && analysisProgress < 100 && (
+                    <div className="progress-container">
+                        <div className="progress-track">
+                            <div 
+                                className="progress-fill" 
+                                style={{ width: `${analysisProgress}%` }}
+                            ></div>
+                        </div>
+                        <div className="progress-text">
+                            {Math.round(analysisProgress)}% complete
+                        </div>
+                    </div>
+                )}
+
+                <div className="video-input-options">
+                    <div className="form-group video-name-group">
+                        <label htmlFor="videoName">Video Name</label>
+                        <input
+                            type="text"
+                            id="videoName"
+                            value={videoName}
+                            onChange={(e) => setVideoName(e.target.value)}
+                            placeholder="e.g., Job Interview Practice"
+                            disabled={isLoading || isRecording || recordingAttemptStarted}
+                        />
+                    </div>
+
+                    <div className="upload-record-sections">
+                        <section className="upload-section">
+                            <h2>Upload Existing Video</h2>
+                            <div className="form-group">
+                                <label htmlFor="videoFile" className="file-upload-label">
+                                    <span>Choose Video File</span>
+                                    <input
+                                        type="file"
+                                        id="videoFile"
+                                        accept="video/*"
+                                        onChange={handleFileChange}
+                                        disabled={isLoading || isRecording || recordingAttemptStarted}
+                                    />
+                                </label>
+                                {uploadedFile && (
+                                    <div className="selected-file-info">
+                                        <span>Selected: {uploadedFile.name}</span>
+                                        <span className="file-size">
+                                            {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => handleUploadAndAnalyze(uploadedFile, videoName)}
+                                className={`action-button upload-button ${isLoading ? 'loading' : ''}`}
+                                disabled={!uploadedFile || isLoading || isRecording || recordingAttemptStarted || !videoName.trim()}
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <span className="spinner"></span>
+                                        Uploading...
+                                    </>
+                                ) : (
+                                    'Upload Video'
+                                )}
+                            </button>
+                        </section>
+
+                        <div className="divider">
+                            <span>OR</span>
+                        </div>
+
+                        <section className="record-section">
+                            <h2>Record New Video</h2>
+                            <div className="video-area">
+                                {showWebcam ? (
+                                    <div className="webcam-container">
+                                        <Webcam
+                                            audio={true}
+                                            muted={true}
+                                            ref={webcamRef}
+                                            videoConstraints={videoConstraints}
+                                            className="webcam-preview"
+                                            mirrored={true}
+                                            onUserMedia={handleUserMedia}
+                                            onUserMediaError={handleUserMediaError}
+                                        />
+                                        {isRecording && (
+                                            <div className="recording-indicator">
+                                                <div className="recording-dot"></div>
+                                                <span>Recording: {formatTime(recordedTime)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : recordedVideoURL ? (
+                                    <div className="recorded-preview-container">
+                                        <video 
+                                            src={recordedVideoURL} 
+                                            controls 
+                                            className="recorded-preview" 
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="no-video-placeholder">
+                                        <div className="placeholder-icon">
+                                            <i className="fas fa-video"></i>
+                                        </div>
+                                        <p>
+                                            {videoName.trim() 
+                                                ? 'Click "Start Recording" to begin' 
+                                                : 'Enter a video name to enable recording'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="recording-controls">
+                                {!isRecording && !showRecordedControls ? (
+                                    <button
+                                        onClick={startRecording}
+                                        className={`action-button record-button ${!videoName.trim() ? 'disabled' : ''}`}
+                                        disabled={isLoading || uploadedFile || !videoName.trim()}
+                                    >
+                                        <i className="fas fa-circle"></i> Start Recording
+                                    </button>
+                                ) : isRecording ? (
+                                    <button
+                                        onClick={stopRecording}
+                                        className="action-button stop-record-button"
+                                        disabled={isLoading}
+                                    >
+                                        <i className="fas fa-stop"></i> Stop Recording
+                                    </button>
+                                ) : showRecordedControls ? (
+                                    <div className="recorded-actions">
+                                        <button
+                                            onClick={handleRerecord}
+                                            className="action-button secondary-button"
+                                            disabled={isLoading}
+                                        >
+                                            <i className="fas fa-redo"></i> Re-record
+                                        </button>
+                                        <button
+                                            onClick={handleUploadRecordedVideo}
+                                            className={`action-button primary-button ${isLoading ? 'loading' : ''}`}
+                                            disabled={!recordedVideoBlob || isLoading || !videoName.trim()}
+                                        >
+                                            {isLoading ? (
+                                                <>
+                                                    <span className="spinner"></span>
+                                                    Uploading...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="fas fa-cloud-upload-alt"></i> Upload Recording
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </main>
             <Footer />
         </div>
