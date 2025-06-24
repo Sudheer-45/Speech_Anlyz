@@ -144,7 +144,7 @@ function MainApplication() {
                 // Calculate estimated time remaining
                 const elapsed = (Date.now() - startTime) / 1000;
                 const estimatedTotal = elapsed / (progress / 100);
-                const remaining = Math.max(0, Math.round((estimatedTotal - elapsed) / 60);
+                const remaining = Math.max(0, Math.round((estimatedTotal - elapsed) / 60));
                 setEstimatedTimeRemaining(remaining);
 
                 setMessage(`${stageMessage} (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}) - ~${remaining} min remaining`);
