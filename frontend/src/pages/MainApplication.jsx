@@ -13,8 +13,8 @@ const videoConstraints = {
 };
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
-const POLLING_INTERVAL = 5000; // 5 seconds
-const MAX_POLLING_ATTEMPTS = 36; // 3 minutes timeout (36 * 5s)
+const POLLING_INTERVAL = 3000; // 3 seconds
+const MAX_POLLING_ATTEMPTS = 20; // ~1 minute timeout
 
 function MainApplication() {
     const navigate = useNavigate();
@@ -36,8 +36,6 @@ function MainApplication() {
     const timerIntervalRef = useRef(null);
     const pollingRef = useRef(null);
     const pollingAttemptsRef = useRef(0);
-    const [analysisProgress, setAnalysisProgress] = useState(0);
-    const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
 
     const formatTime = (totalSeconds) => {
         const minutes = Math.floor(totalSeconds / 60);
@@ -51,129 +49,108 @@ function MainApplication() {
             pollingRef.current = null;
         }
         pollingAttemptsRef.current = 0;
-        setAnalysisProgress(0);
-        setEstimatedTimeRemaining(null);
     };
 
     const checkVideoStatus = async (videoId) => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) throw new Error('User not authenticated');
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('User not authenticated');
 
-            const response = await axios.get(`${RENDER_BACKEND_URL}/api/videos/status/${videoId}`, {
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+        const response = await axios.get(`${RENDER_BACKEND_URL}/api/videos/status/${videoId}`, {
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        // Handle case where endpoint exists but returns 404
+        if (response.status === 404) {
+            throw new Error('Video not found');
+        }
+        
+        return response.data;
+    } catch (error) {
+        console.error('Status check error:', error);
+        
+        // Handle specific error cases
+        if (error.response?.status === 404) {
+            throw new Error('Video not found - please try uploading again');
+        } else if (error.response?.status === 401) {
+            throw new Error('Session expired - please login again');
+        }
+        
+        throw error;
+    }
+};
+
+const startPolling = (videoId, videoName) => {
+    stopPolling();
+    
+    const poll = async () => {
+        try {
+            pollingAttemptsRef.current += 1;
             
-            if (response.status === 404) {
-                throw new Error('Video not found');
+            const statusResponse = await checkVideoStatus(videoId);
+            
+            // Handle different status cases
+            switch (statusResponse.status) {
+                case 'analyzed':
+                    stopPolling();
+                    navigate('/app/results', { 
+                        state: { 
+                            videoRecordId: videoId,
+                            videoUrl: statusResponse.videoUrl,
+                            videoName,
+                            analysisId: statusResponse.analysisId
+                        } 
+                    });
+                    break;
+                    
+                case 'failed':
+                    stopPolling();
+                    setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
+                    setIsError(true);
+                    break;
+                    
+                case 'processed':
+                    // Reset attempt counter when processing starts
+                    pollingAttemptsRef.current = 1;
+                    setMessage(`Video processing (${Math.min(pollingAttemptsRef.current, MAX_POLLING_ATTEMPTS)}/${MAX_POLLING_ATTEMPTS})...`);
+                    break;
+                    
+                default:
+                    setMessage(`Video upload processing (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
+            }
+
+            if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
+                stopPolling();
+                setMessage('Analysis is taking longer than expected. We\'ll notify you when it\'s ready.');
+                setIsError(false); // Not really an error state
+                
+                // Optionally implement a notification system here
             }
             
-            return response.data;
         } catch (error) {
-            console.error('Status check error:', error);
+            console.error('Polling error:', error);
             
-            if (error.response?.status === 404) {
-                throw new Error('Video not found - please try uploading again');
-            } else if (error.response?.status === 401) {
-                throw new Error('Session expired - please login again');
+            if (error.message.includes('not found')) {
+                stopPolling();
+                setMessage('Video not found - please try uploading again');
+                setIsError(true);
+            } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
+                stopPolling();
+                setMessage('System busy - we\'ll notify you when your analysis is ready');
+                setIsError(false);
             }
-            
-            throw error;
         }
     };
 
-    const startPolling = (videoId, videoName) => {
-        stopPolling();
-        const startTime = Date.now();
-        
-        const poll = async () => {
-            try {
-                pollingAttemptsRef.current += 1;
-                const statusResponse = await checkVideoStatus(videoId);
-                
-                // Calculate progress and estimated time
-                let progress = 0;
-                let stageMultiplier = 1;
-                let stageMessage = '';
-                
-                switch (statusResponse.status) {
-                    case 'uploading':
-                        progress = 15;
-                        stageMultiplier = 1.2;
-                        stageMessage = 'Uploading video';
-                        break;
-                    case 'processing':
-                        progress = 30;
-                        stageMultiplier = 1.5;
-                        stageMessage = 'Processing video';
-                        break;
-                    case 'transcribing':
-                        progress = 50;
-                        stageMultiplier = 2;
-                        stageMessage = 'Transcribing audio';
-                        break;
-                    case 'analyzing':
-                        progress = 75;
-                        stageMultiplier = 1;
-                        stageMessage = 'Analyzing content with Google AI';
-                        break;
-                    case 'analyzed':
-                        progress = 100;
-                        stopPolling();
-                        navigate('/app/results', { 
-                            state: { 
-                                videoRecordId: videoId,
-                                videoUrl: statusResponse.videoUrl,
-                                videoName,
-                                analysisId: statusResponse.analysisId
-                            } 
-                        });
-                        return;
-                    case 'failed':
-                        stopPolling();
-                        setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
-                        setIsError(true);
-                        return;
-                }
-
-                setAnalysisProgress(progress);
-                
-                // Calculate estimated time remaining
-                const elapsed = (Date.now() - startTime) / 1000;
-                const estimatedTotal = elapsed / (progress / 100);
-                const remaining = Math.max(0, Math.round((estimatedTotal - elapsed) / 60));
-                setEstimatedTimeRemaining(remaining);
-
-                setMessage(`${stageMessage} (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}) - ~${remaining} min remaining`);
-
-                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
-                    stopPolling();
-                    setMessage('Analysis is taking longer than expected. We\'ll notify you when complete.');
-                    setIsError(false);
-                }
-                
-            } catch (error) {
-                console.error('Polling error:', error);
-                
-                if (error.message.includes('not found')) {
-                    stopPolling();
-                    setMessage('Video not found - please try uploading again');
-                    setIsError(true);
-                } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
-                    stopPolling();
-                    setMessage('System busy - we\'ll notify you when complete');
-                    setIsError(false);
-                }
-            }
-        };
-
-        poll();
-        pollingRef.current = setInterval(poll, POLLING_INTERVAL);
-    };
-
+    // Initial immediate poll
+    poll();
+    
+    // Set up interval for subsequent polls
+    pollingRef.current = setInterval(poll, POLLING_INTERVAL);
+};
     const handleUploadAndAnalyze = async (fileToUpload, nameForVideo) => {
         setMessage('');
         setIsError(false);
@@ -194,7 +171,7 @@ function MainApplication() {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('User not authenticated. Please log in.');
 
-            const uploadResponse = await axios.post(`${RENDER_BACKEND_URL}/api/videos/upload`, formData, {
+            const uploadResponse = await axios.post(`${RENDER_BACKEND_URL}/api/upload`, formData, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
@@ -202,13 +179,12 @@ function MainApplication() {
                 onUploadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                     setMessage(`Uploading video: ${percentCompleted}%`);
-                    setAnalysisProgress(percentCompleted / 2); // Upload is first half of progress
                 }
             });
 
             const { videoId, message: responseMessage } = uploadResponse.data;
             
-            setMessage(responseMessage || 'Video uploaded. Analysis in progress...');
+            setMessage(responseMessage || 'Video uploaded. Processing may take a few minutes...');
             cleanupAfterUpload();
             startPolling(videoId, nameForVideo || fileToUpload.name);
 
@@ -376,38 +352,19 @@ function MainApplication() {
                 
                 <div className="website-info">
                     <p>
-                        This platform uses Google's advanced AI to analyze your communication skills.
-                        Upload a video or record directly to receive detailed feedback on your speech patterns,
-                        grammar, and overall effectiveness.
+                        This platform helps you enhance your communication skills by analyzing your spoken English.
+                        Upload a video or record directly using your webcam to receive insights into your grammar,
+                        filler words, speaking rate, and overall sentiment.
                     </p>
                 </div>
 
-                {message && (
-                    <div className={`status-message ${isError ? 'error' : 'info'}`}>
-                        {message}
-                        {estimatedTimeRemaining !== null && !isError && (
-                            <div className="time-estimate">
-                                Estimated time remaining: ~{estimatedTimeRemaining} minute{estimatedTimeRemaining !== 1 ? 's' : ''}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {analysisProgress > 0 && analysisProgress < 100 && (
-                    <div className="progress-container">
-                        <div className="progress-track">
-                            <div 
-                                className="progress-fill" 
-                                style={{ width: `${analysisProgress}%` }}
-                            ></div>
-                        </div>
-                        <div className="progress-text">
-                            {Math.round(analysisProgress)}% complete
-                        </div>
-                    </div>
-                )}
-
                 <div className="video-input-options">
+                    {message && (
+                        <p className={`status-message ${isError ? 'error' : 'success'}`}>
+                            {message}
+                        </p>
+                    )}
+
                     <div className="form-group video-name-group">
                         <label htmlFor="videoName">Video Name</label>
                         <input
@@ -415,7 +372,7 @@ function MainApplication() {
                             id="videoName"
                             value={videoName}
                             onChange={(e) => setVideoName(e.target.value)}
-                            placeholder="e.g., Job Interview Practice"
+                            placeholder="e.g., Google Interview Practice"
                             disabled={isLoading || isRecording || recordingAttemptStarted}
                         />
                     </div>
@@ -424,86 +381,50 @@ function MainApplication() {
                         <section className="upload-section">
                             <h2>Upload Existing Video</h2>
                             <div className="form-group">
-                                <label htmlFor="videoFile" className="file-upload-label">
-                                    <span>Choose Video File</span>
-                                    <input
-                                        type="file"
-                                        id="videoFile"
-                                        accept="video/*"
-                                        onChange={handleFileChange}
-                                        disabled={isLoading || isRecording || recordingAttemptStarted}
-                                    />
-                                </label>
+                                <input
+                                    type="file"
+                                    id="videoFile"
+                                    accept="video/*"
+                                    onChange={handleFileChange}
+                                    disabled={isLoading || isRecording || recordingAttemptStarted}
+                                />
                                 {uploadedFile && (
-                                    <div className="selected-file-info">
-                                        <span>Selected: {uploadedFile.name}</span>
-                                        <span className="file-size">
-                                            {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
-                                        </span>
-                                    </div>
+                                    <p className="selected-file-info">
+                                        Selected: {uploadedFile.name}
+                                    </p>
                                 )}
                             </div>
                             <button
                                 onClick={() => handleUploadAndAnalyze(uploadedFile, videoName)}
-                                className={`action-button upload-button ${isLoading ? 'loading' : ''}`}
+                                className="action-button upload-button"
                                 disabled={!uploadedFile || isLoading || isRecording || recordingAttemptStarted || !videoName.trim()}
                             >
-                                {isLoading ? (
-                                    <>
-                                        <span className="spinner"></span>
-                                        Uploading...
-                                    </>
-                                ) : (
-                                    'Upload Video'
-                                )}
+                                {isLoading ? 'Uploading...' : 'Upload Video'}
                             </button>
                         </section>
-
-                        <div className="divider">
-                            <span>OR</span>
-                        </div>
 
                         <section className="record-section">
                             <h2>Record New Video</h2>
                             <div className="video-area">
                                 {showWebcam ? (
-                                    <div className="webcam-container">
-                                        <Webcam
-                                            audio={true}
-                                            muted={true}
-                                            ref={webcamRef}
-                                            videoConstraints={videoConstraints}
-                                            className="webcam-preview"
-                                            mirrored={true}
-                                            onUserMedia={handleUserMedia}
-                                            onUserMediaError={handleUserMediaError}
-                                        />
-                                        {isRecording && (
-                                            <div className="recording-indicator">
-                                                <div className="recording-dot"></div>
-                                                <span>Recording: {formatTime(recordedTime)}</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <Webcam
+                                        audio={true}
+                                        muted={true}
+                                        ref={webcamRef}
+                                        videoConstraints={videoConstraints}
+                                        className="webcam-preview"
+                                        mirrored={true}
+                                        onUserMedia={handleUserMedia}
+                                        onUserMediaError={handleUserMediaError}
+                                    />
                                 ) : recordedVideoURL ? (
                                     <div className="recorded-preview-container">
-                                        <video 
-                                            src={recordedVideoURL} 
-                                            controls 
-                                            className="recorded-preview" 
-                                        />
+                                        <video src={recordedVideoURL} controls className="recorded-preview" />
                                     </div>
                                 ) : (
-                                    <div className="no-video-placeholder">
-                                        <div className="placeholder-icon">
-                                            <i className="fas fa-video"></i>
-                                        </div>
-                                        <p>
-                                            {videoName.trim() 
-                                                ? 'Click "Start Recording" to begin' 
-                                                : 'Enter a video name to enable recording'}
-                                        </p>
-                                    </div>
+                                    <p className="no-video-message">
+                                        {videoName.trim() ? 'Click "Start Recording" to begin' : 'Enter a video name to enable recording'}
+                                    </p>
                                 )}
                             </div>
 
@@ -511,45 +432,41 @@ function MainApplication() {
                                 {!isRecording && !showRecordedControls ? (
                                     <button
                                         onClick={startRecording}
-                                        className={`action-button record-button ${!videoName.trim() ? 'disabled' : ''}`}
+                                        className="action-button record-button"
                                         disabled={isLoading || uploadedFile || !videoName.trim()}
                                     >
-                                        <i className="fas fa-circle"></i> Start Recording
+                                        Start Recording
                                     </button>
                                 ) : isRecording ? (
-                                    <button
-                                        onClick={stopRecording}
-                                        className="action-button stop-record-button"
-                                        disabled={isLoading}
-                                    >
-                                        <i className="fas fa-stop"></i> Stop Recording
-                                    </button>
-                                ) : showRecordedControls ? (
-                                    <div className="recorded-actions">
+                                    <>
                                         <button
-                                            onClick={handleRerecord}
-                                            className="action-button secondary-button"
+                                            onClick={stopRecording}
+                                            className="action-button stop-record-button"
                                             disabled={isLoading}
                                         >
-                                            <i className="fas fa-redo"></i> Re-record
+                                            Stop Recording
+                                        </button>
+                                        <div className="recording-timer">
+                                            <span className="timer-icon">⏺️</span> Recording: {formatTime(recordedTime)}
+                                        </div>
+                                    </>
+                                ) : showRecordedControls ? (
+                                    <>
+                                        <button
+                                            onClick={handleRerecord}
+                                            className="action-button rerecord-button"
+                                            disabled={isLoading}
+                                        >
+                                            Re-record
                                         </button>
                                         <button
                                             onClick={handleUploadRecordedVideo}
-                                            className={`action-button primary-button ${isLoading ? 'loading' : ''}`}
+                                            className="action-button upload-recorded-button"
                                             disabled={!recordedVideoBlob || isLoading || !videoName.trim()}
                                         >
-                                            {isLoading ? (
-                                                <>
-                                                    <span className="spinner"></span>
-                                                    Uploading...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="fas fa-cloud-upload-alt"></i> Upload Recording
-                                                </>
-                                            )}
+                                            {isLoading ? 'Uploading...' : 'Upload Recorded Video'}
                                         </button>
-                                    </div>
+                                    </>
                                 ) : null}
                             </div>
                         </section>
