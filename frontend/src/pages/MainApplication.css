@@ -1,3 +1,4 @@
+/* Premium 3D Effect Main Application Styling */
 .main-app-container {
     display: flex;
     flex-direction: column;
@@ -5,10 +6,13 @@
     background: linear-gradient(145deg, #0a0a1f, #1e2a44);
     color: #ffffff;
     position: relative;
-    overflow-x: hidden;
+    overflow: hidden;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* Ensure no horizontal scroll by default */
+    width: 100%;
 }
 
+/* Particle Background */
 .main-app-container::before {
     content: '';
     position: absolute;
@@ -47,7 +51,7 @@
 
 .main-content {
     flex: 1;
-    padding: 3rem 1rem;
+    padding: 2rem 1rem; /* Adjust padding for smaller screens */
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
@@ -62,24 +66,25 @@
 }
 
 .main-content h1 {
-    font-size: 3.5rem;
-    margin-bottom: 2rem;
+    font-size: 2.5rem; /* Base font size for mobile */
+    margin-bottom: 1.5rem;
     color: #3b82f6;
     text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
     transform: translateZ(20px);
 }
 
+/* Website Information Section */
 .website-info {
     background: rgba(20, 20, 40, 0.75);
     backdrop-filter: blur(10px);
     border-radius: 15px;
-    padding: 2rem;
-    margin-bottom: 3rem;
+    padding: 1.5rem; /* Adjusted padding for mobile */
+    margin-bottom: 2rem; /* Adjusted margin for mobile */
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(59, 130, 246, 0.3);
     text-align: left;
     line-height: 1.7;
-    font-size: 1.1rem;
+    font-size: 1rem; /* Base font size */
     max-width: 900px;
     margin-left: auto;
     margin-right: auto;
@@ -89,19 +94,45 @@
 }
 
 .website-info p {
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem; /* Adjusted margin */
     color: #d1d5db;
 }
 
+.website-info p:last-child {
+    margin-bottom: 0;
+}
+
+/* Video Input Options Container */
+.video-input-options {
+    background: rgba(20, 20, 40, 0.75);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 1.5rem; /* Adjusted padding for mobile */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    text-align: center;
+    transform: translateZ(10px);
+    opacity: 0;
+    animation: fadeInSection 0.8s ease-out forwards;
+    animation-delay: 0.2s;
+}
+
+@keyframes fadeInSection {
+    from { opacity: 0; transform: translateY(30px) translateZ(0); }
+    to { opacity: 1; transform: translateY(0) translateZ(10px); }
+}
+
+/* Status Message */
 .status-message {
-    margin: 0 auto 1.5rem;
-    padding: 1rem;
+    margin: 0 auto 1rem; /* Adjusted margin */
+    padding: 0.8rem; /* Adjusted padding */
     border-radius: 10px;
-    font-size: 1.1rem;
+    font-size: 1rem; /* Adjusted font size */
     font-weight: 500;
     text-align: center;
-    max-width: 80%;
+    max-width: 90%; /* Increased width for small screens */
     transform: translateZ(10px);
+    box-sizing: border-box; /* Ensure padding is included in width */
 }
 
 .status-message.success {
@@ -118,43 +149,100 @@
     box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
 }
 
+/* Form Elements */
 .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem; /* Adjusted margin */
     text-align: left;
     position: relative;
     perspective: 800px;
 }
 
 .video-name-group {
-    max-width: 600px;
-    margin: auto;
+    max-width: 100%; /* Full width for mobile */
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 1rem; /* Add horizontal padding for smaller screens */
+    box-sizing: border-box;
 }
 
 .form-label {
-    font-size: 1.1rem;
+    font-size: 1rem; /* Base font size */
     font-weight: 600;
     color: #e0e7ff;
-    position: relative;
-    left: 1rem;
+    position: absolute; /* Changed to absolute for more control */
+    top: 1.2rem; /* Adjusted vertical position */
+    left: 2rem; /* Adjusted horizontal position */
+    pointer-events: none;
+    transition: transform 0.4s ease, color 0.4s ease;
+    transform: translateZ(20px);
+    background-color: transparent; /* Ensure no background interferes */
+    z-index: 1; /* Ensure it's above input */
 }
 
 .form-input,
 .file-input {
-    width: 100%;
-    padding: 1.2rem 1.5rem;
+    width: calc(100% - 2rem); /* Adjusted width to account for padding */
+    padding: 1.2rem 1rem; /* Added horizontal padding */
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.08);
     color: #ffffff;
     font-size: 1rem;
     transition: all 0.4s ease;
+    transform: translateZ(20px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     outline: none;
+    box-sizing: border-box; /* Include padding in element's total width */
+    position: relative;
+    z-index: 0;
+}
+
+.form-input:focus,
+.form-input:not(:placeholder-shown),
+.form-input:-webkit-autofill,
+.file-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+    transform: translateZ(30px);
+}
+
+/* Label animation for input */
+.form-input:focus + .form-label,
+.form-input:not(:placeholder-shown) + .form-label,
+.form-input:-webkit-autofill + .form-label {
+    transform: translateY(-2.2rem) translateX(-0.5rem) translateZ(25px) scale(0.85); /* Adjusted for absolute positioning */
+    color: #3b82f6;
+    background-color: rgba(20, 20, 40, 0.75); /* Match parent background for "floating" effect */
+    padding: 0 0.5rem;
+    border-radius: 5px;
+}
+
+/* Autofill Styles */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.08) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
 }
 
 .form-input::placeholder {
     color: #9ca3af;
     opacity: 1;
+}
+
+/* File input custom styling */
+.file-input {
+    display: block; /* Ensure it takes full width */
+    text-align: center; /* Center the pseudo-element */
+    height: 3rem; /* Give it a defined height */
+    cursor: pointer;
+}
+
+.file-input::-webkit-file-upload-button {
+    visibility: hidden;
 }
 
 .file-input::before {
@@ -168,21 +256,55 @@
     font-weight: 600;
     font-size: 0.9rem;
     transition: all 0.3s ease;
+    transform: translateZ(10px);
+    border: none; /* Remove default border */
 }
 
+.file-input.has-file::before {
+    content: 'Change Video';
+    background: linear-gradient(45deg, #34d399, #6ee7b7);
+}
+
+.file-input:hover::before {
+    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+    transform: translateZ(15px);
+}
+
+.file-input.has-file:hover::before {
+    box-shadow: 0 5px 15px rgba(52, 211, 153, 0.4);
+}
+
+.selected-file-info {
+    font-size: 0.9rem;
+    color: #d1d5db;
+    margin-top: 0.8rem;
+    padding: 0.5rem 1rem;
+    background: rgba(30, 30, 50, 0.85);
+    border-radius: 8px;
+    text-align: left;
+    transform: translateZ(10px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    width: calc(100% - 2rem); /* Match input width */
+    box-sizing: border-box;
+    margin-left: 1rem; /* Adjust to align with input */
+    margin-right: 1rem;
+}
+
+/* Upload and Record Sections */
 .upload-record-sections {
     display: flex;
+    flex-direction: column; /* Default to column for mobile */
     justify-content: center;
-    gap: 2rem;
-    flex-wrap: wrap;
-    margin-top: 2rem;
-    width: 100%;
+    gap: 1.5rem; /* Adjusted gap */
+    margin-top: 1.5rem; /* Adjusted margin */
 }
 
 .upload-section,
 .record-section {
-    width: 100%;
-    max-width: 500px;
+    width: 100%; /* Full width for mobile */
+    max-width: 450px; /* Max width for single column */
+    margin: 0 auto; /* Center individual sections */
     background: rgba(30, 30, 50, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 15px;
@@ -190,29 +312,43 @@
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(59, 130, 246, 0.3);
     text-align: left;
-    flex: 1 1 100%;
-    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transform: translateZ(10px);
+    opacity: 0;
+    animation: fadeInSection 0.8s ease-out forwards;
+}
+
+.upload-section {
+    animation-delay: 0.4s;
+}
+
+.record-section {
+    animation-delay: 0.6s;
 }
 
 .upload-section h2,
 .record-section h2 {
-    font-size: 1.8rem;
+    font-size: 1.6rem; /* Adjusted font size */
     color: #ffffff;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem; /* Adjusted margin */
     text-align: center;
     text-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+    transform: translateZ(20px);
 }
 
 .action-button {
-    padding: 1rem;
+    padding: 0.9rem; /* Adjusted padding */
     border-radius: 10px;
-    font-size: 1.1rem;
+    font-size: 1rem; /* Adjusted font size */
     font-weight: 600;
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
     width: 100%;
     margin-top: 1rem;
+    transform: translateZ(10px);
 }
 
 .upload-button,
@@ -222,29 +358,54 @@
     box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
 }
 
+.upload-button:hover:not(:disabled),
+.upload-recorded-button:hover:not(:disabled) {
+    transform: translateZ(20px) translateY(-3px);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.6);
+}
+
 .record-button {
     background: linear-gradient(45deg, #34d399, #6ee7b7);
     color: #ffffff;
+    box-shadow: 0 5px 15px rgba(52, 211, 153, 0.4);
+}
+
+.record-button:hover:not(:disabled) {
+    transform: translateZ(20px) translateY(-3px);
+    box-shadow: 0 8px 20px rgba(52, 211, 153, 0.6);
 }
 
 .stop-record-button {
     background: linear-gradient(45deg, #ef4444, #f87171);
     color: #ffffff;
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+}
+
+.stop-record-button:hover:not(:disabled) {
+    transform: translateZ(20px) translateY(-3px);
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.6);
 }
 
 .rerecord-button {
     background: linear-gradient(45deg, #f59e0b, #fbbf24);
     color: #ffffff;
+    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+}
+
+.rerecord-button:hover:not(:disabled) {
+    transform: translateZ(20px) translateY(-3px);
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.6);
 }
 
 .action-button:disabled {
     background: #6b7280;
     cursor: not-allowed;
-    transform: none;
+    transform: translateZ(0);
     box-shadow: none;
     opacity: 0.7;
 }
 
+/* Video Elements */
 .video-area {
     margin-bottom: 1rem;
     display: flex;
@@ -256,76 +417,381 @@
 .webcam-preview,
 .recorded-preview {
     width: 100%;
-    max-width: 100%;
-    height: auto;
+    max-width: 350px; /* Keep a max-width for better aspect ratio control */
+    height: auto; /* Maintain aspect ratio */
     background-color: #000;
     border: 2px solid rgba(59, 130, 246, 0.5);
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    transition: all 0.3s ease;
+    transform: translateZ(10px);
+    object-fit: cover; /* Ensure video covers the area without distortion */
 }
 
+.webcam-preview:hover,
+.recorded-preview:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    transform: translateZ(20px);
+}
+
+.recorded-preview-container {
+    width: 100%;
+    max-width: 350px; /* Match video max-width */
+    margin: 0.5rem auto;
+    text-align: center;
+}
+
+.recorded-preview-container h3 {
+    font-size: 1.1rem;
+    color: #d1d5db;
+    margin-bottom: 0.5rem;
+    transform: translateZ(0);
+}
+
+/* Recording Controls */
 .recording-controls {
     display: flex;
     justify-content: center;
     align-items: center;
     margin-top: 1rem;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 0.8rem; /* Adjusted gap */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
 }
 
 .recording-timer {
     background: rgba(30, 30, 50, 0.85);
     color: #ffffff;
-    padding: 0.8rem 1.5rem;
+    padding: 0.6rem 1.2rem; /* Adjusted padding */
     border-radius: 20px;
-    font-size: 1.1rem;
+    font-size: 0.95rem; /* Adjusted font size */
     font-weight: bold;
     display: flex;
     align-items: center;
     gap: 0.5rem;
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    transform: translateZ(10px);
+    text-align: center; /* Ensure text is centered */
 }
 
-@media (max-width: 768px) {
+.timer-icon {
+    color: #ef4444;
+    font-size: 1.1rem; /* Adjusted font size */
+}
+
+.no-video-message {
+    color: #9ca3af;
+    margin: 0.5rem 0;
+    font-size: 0.95rem; /* Adjusted font size */
+    transform: translateZ(0);
+}
+
+/* --- Responsive Design --- */
+
+/* Small devices (phones, 480px and below) */
+/* Base styles are already mobile-first, so slight adjustments here */
+@media (max-width: 480px) {
     .main-content {
-        padding: 1.5rem 1rem;
+        padding: 1rem 0.5rem;
+    }
+
+    .main-content h1 {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+
+    .website-info {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
     }
 
     .video-input-options {
-        padding: 1.5rem 1rem;
-        width: 100%;
-        box-sizing: border-box;
+        padding: 1rem;
+    }
+
+    .status-message {
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .video-name-group {
+        padding: 0 0.5rem;
+    }
+
+    .form-input,
+    .file-input {
+        width: calc(100% - 1rem); /* Further reduce width for very small screens */
+        padding: 1rem 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .form-label {
+        top: 1rem;
+        left: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .form-input:focus + .form-label,
+    .form-input:not(:placeholder-shown) + .form-label,
+    .form-input:-webkit-autofill + .form-label {
+        transform: translateY(-2rem) translateX(-0.5rem) translateZ(25px) scale(0.8);
+    }
+
+    .file-input::before {
+        padding: 0.7rem 1rem;
+        font-size: 0.85rem;
+    }
+
+    .selected-file-info {
+        width: calc(100% - 1rem);
+        margin-left: 0.5rem;
+        margin-right: 0.5rem;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
     }
 
     .upload-record-sections {
-        flex-direction: column;
-        gap: 1.5rem;
-        align-items: center;
+        gap: 1rem;
     }
 
     .upload-section,
     .record-section {
         padding: 1rem;
-        width: 100%;
-        max-width: 100%;
     }
 
-    .form-input,
-    .file-input,
+    .upload-section h2,
+    .record-section h2 {
+        font-size: 1.4rem;
+        margin-bottom: 0.8rem;
+    }
+
     .action-button {
-        width: 100%;
-        font-size: 1rem;
-        padding: 0.9rem;
+        padding: 0.8rem;
+        font-size: 0.9rem;
+        margin-top: 0.8rem;
+    }
+
+    .webcam-preview,
+    .recorded-preview {
+        max-width: 100%; /* Allow video to take full width of its container */
+        height: auto; /* Maintain aspect ratio */
     }
 
     .recording-controls {
         flex-direction: column;
-        width: 100%;
-        gap: 0.8rem;
+        gap: 0.6rem;
     }
 
     .recording-timer {
-        width: 100%;
-        text-align: center;
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+    }
+    
+    .timer-icon {
+        font-size: 1rem;
+    }
+    
+    .no-video-message {
+        font-size: 0.9rem;
+    }
+}
+
+/* Medium devices (tablets, 481px to 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+    .main-content {
+        padding: 2.5rem 1.5rem;
+    }
+
+    .main-content h1 {
+        font-size: 3rem;
+        margin-bottom: 2rem;
+    }
+
+    .website-info {
+        padding: 2rem;
+        margin-bottom: 2.5rem;
+        font-size: 1.05rem;
+    }
+
+    .video-input-options {
+        padding: 2rem;
+    }
+
+    .status-message {
+        font-size: 1.05rem;
+        padding: 1rem;
+    }
+
+    .video-name-group {
+        max-width: 70%; /* Adjust max-width for better centering */
+    }
+
+    .form-input,
+    .file-input {
+        width: calc(100% - 2rem);
+        padding: 1.2rem 1rem;
+        font-size: 1rem;
+    }
+
+    .form-label {
+        top: 1.2rem;
+        left: 2rem;
+        font-size: 1rem;
+    }
+
+    .selected-file-info {
+        width: calc(100% - 2rem);
+        margin-left: 1rem;
+        margin-right: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .upload-record-sections {
+        flex-direction: column; /* Keep column layout for tablets for better vertical flow */
+        gap: 1.8rem;
+    }
+
+    .upload-section,
+    .record-section {
+        padding: 1.8rem;
+        max-width: 600px; /* Allow sections to be a bit wider */
+    }
+
+    .upload-section h2,
+    .record-section h2 {
+        font-size: 1.7rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .action-button {
+        padding: 1rem;
+        font-size: 1.05rem;
+        margin-top: 1rem;
+    }
+    
+    .recording-timer {
+        font-size: 1rem;
+        padding: 0.7rem 1.4rem;
+    }
+    
+    .timer-icon {
+        font-size: 1.15rem;
+    }
+    
+    .no-video-message {
+        font-size: 1rem;
+    }
+}
+
+/* Large devices (desktops, 769px and up) */
+@media (min-width: 769px) {
+    .main-content {
+        padding: 3rem 2rem; /* Restore larger padding for desktops */
+    }
+
+    .main-content h1 {
+        font-size: 3.5rem; /* Original larger font size */
+        margin-bottom: 2rem;
+    }
+
+    .website-info {
+        padding: 2rem;
+        margin-bottom: 3rem;
+        font-size: 1.1rem; /* Original font size */
+    }
+
+    .video-input-options {
+        padding: 2.5rem; /* Original larger padding */
+    }
+
+    .status-message {
+        max-width: 80%; /* Original max-width */
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .video-name-group {
+        max-width: 600px; /* Original max-width */
+        padding: 0; /* No horizontal padding needed as it's centered by margin auto */
+    }
+
+    .form-input,
+    .file-input {
+        width: 100%; /* Back to 100% relative to parent (video-name-group) */
+        padding: 1.2rem 1.5rem; /* Original padding */
+        font-size: 1rem;
+    }
+
+    .form-label {
+        top: 1.2rem;
+        left: 1.5rem; /* Adjust for padding in input */
+        font-size: 1.1rem; /* Original font size */
+    }
+
+    .form-input:focus + .form-label,
+    .form-input:not(:placeholder-shown) + .form-label,
+    .form-input:-webkit-autofill + .form-label {
+        transform: translateY(-2.2rem) translateZ(25px) scale(0.85); /* Original transform */
+    }
+
+    .selected-file-info {
+        width: 100%; /* Back to 100% */
+        margin-left: 0; /* Reset margins */
+        margin-right: 0;
+        font-size: 0.9rem;
+    }
+
+    .upload-record-sections {
+        flex-direction: row; /* Layout side-by-side for desktops */
+        gap: 2rem; /* Original larger gap */
+        margin-top: 2rem; /* Original larger margin */
+    }
+
+    .upload-section,
+    .record-section {
+        width: calc(50% - 1rem); /* Two columns with gap */
+        max-width: none; /* Remove max-width restriction for dual column */
+        padding: 2rem;
+    }
+
+    .upload-section h2,
+    .record-section h2 {
+        font-size: 1.8rem; /* Original larger font size */
+        margin-bottom: 1.5rem;
+    }
+
+    .action-button {
+        padding: 1rem;
+        font-size: 1.1rem;
+        margin-top: 1rem;
+    }
+    
+    .webcam-preview,
+    .recorded-preview {
+        max-width: 400px; /* Slightly larger max-width for large screens if desired */
+    }
+
+    .recorded-preview-container {
+        max-width: 400px;
+    }
+
+    .recording-controls {
+        flex-direction: row; /* Keep row for desktops */
+        gap: 1rem;
+    }
+
+    .recording-timer {
+        font-size: 1.1rem;
+        padding: 0.8rem 1.5rem;
+    }
+    
+    .timer-icon {
+        font-size: 1.2rem;
+    }
+    
+    .no-video-message {
+        font-size: 1rem;
     }
 }
