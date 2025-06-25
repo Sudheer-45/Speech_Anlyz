@@ -1,4 +1,3 @@
-/* Premium 3D Effect Main Application Styling */
 .main-app-container {
     display: flex;
     flex-direction: column;
@@ -6,11 +5,10 @@
     background: linear-gradient(145deg, #0a0a1f, #1e2a44);
     color: #ffffff;
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Particle Background */
 .main-app-container::before {
     content: '';
     position: absolute;
@@ -71,7 +69,6 @@
     transform: translateZ(20px);
 }
 
-/* Website Information Section */
 .website-info {
     background: rgba(20, 20, 40, 0.75);
     backdrop-filter: blur(10px);
@@ -96,31 +93,6 @@
     color: #d1d5db;
 }
 
-.website-info p:last-child {
-    margin-bottom: 0;
-}
-
-/* Video Input Options Container */
-.video-input-options {
-    background: rgba(20, 20, 40, 0.75);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 2.5rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    text-align: center;
-    transform: translateZ(10px);
-    opacity: 0;
-    animation: fadeInSection 0.8s ease-out forwards;
-    animation-delay: 0.2s;
-}
-
-@keyframes fadeInSection {
-    from { opacity: 0; transform: translateY(30px) translateZ(0); }
-    to { opacity: 1; transform: translateY(0) translateZ(10px); }
-}
-
-/* Status Message */
 .status-message {
     margin: 0 auto 1.5rem;
     padding: 1rem;
@@ -146,7 +118,6 @@
     box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
 }
 
-/* Form Elements */
 .form-group {
     margin-bottom: 1.5rem;
     text-align: left;
@@ -156,8 +127,7 @@
 
 .video-name-group {
     max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
+    margin: auto;
 }
 
 .form-label {
@@ -166,14 +136,11 @@
     color: #e0e7ff;
     position: relative;
     left: 1rem;
-    pointer-events: none;
-    transition: transform 0.4s ease, color 0.4s ease;
-    transform: translateZ(20px);
 }
 
 .form-input,
 .file-input {
-    width: 90%;
+    width: 100%;
     padding: 1.2rem 1.5rem;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
@@ -181,46 +148,13 @@
     color: #ffffff;
     font-size: 1rem;
     transition: all 0.4s ease;
-    transform: translateZ(20px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     outline: none;
-}
-
-.form-input:focus,
-.form-input:not(:placeholder-shown),
-.form-input:-webkit-autofill,
-.file-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-    transform: translateZ(30px);
-}
-
-.form-input:focus + .form-label,
-.form-input:not(:placeholder-shown) + .form-label,
-.form-input:-webkit-autofill + .form-label,
-.file-input:focus + .form-label {
-    transform: translateY(-2.2rem) translateZ(25px) scale(0.85);
-    color: #3b82f6;
-}
-
-/* Autofill Styles */
-.form-input:-webkit-autofill,
-.form-input:-webkit-autofill:hover,
-.form-input:-webkit-autofill:focus {
-    -webkit-text-fill-color: #ffffff !important;
-    background-color: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.08) inset !important;
-    transition: background-color 5000s ease-in-out 0s;
 }
 
 .form-input::placeholder {
     color: #9ca3af;
     opacity: 1;
-}
-
-.file-input::-webkit-file-upload-button {
-    visibility: hidden;
 }
 
 .file-input::before {
@@ -234,50 +168,21 @@
     font-weight: 600;
     font-size: 0.9rem;
     transition: all 0.3s ease;
-    transform: translateZ(10px);
 }
 
-.file-input.has-file::before {
-    content: 'Change Video';
-    background: linear-gradient(45deg, #34d399, #6ee7b7);
-}
-
-.file-input:hover::before {
-    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
-    transform: translateZ(15px);
-}
-
-.file-input.has-file:hover::before {
-    box-shadow: 0 5px 15px rgba(52, 211, 153, 0.4);
-}
-
-.selected-file-info {
-    font-size: 0.9rem;
-    color: #d1d5db;
-    margin-top: 0.8rem;
-    padding: 0.5rem 1rem;
-    background: rgba(30, 30, 50, 0.85);
-    border-radius: 8px;
-    text-align: left;
-    transform: translateZ(10px);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-/* Upload and Record Sections */
 .upload-record-sections {
     display: flex;
     justify-content: center;
     gap: 2rem;
     flex-wrap: wrap;
     margin-top: 2rem;
+    width: 100%;
 }
 
 .upload-section,
 .record-section {
-    min-width: 280px;
-    max-width: 450px;
-    width: 90%;
+    width: 100%;
+    max-width: 500px;
     background: rgba(30, 30, 50, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 15px;
@@ -285,20 +190,8 @@
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(59, 130, 246, 0.3);
     text-align: left;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transform: translateZ(10px);
-    opacity: 0;
-    animation: fadeInSection 0.8s ease-out forwards;
-}
-
-.upload-section {
-    animation-delay: 0.4s;
-}
-
-.record-section {
-    animation-delay: 0.6s;
+    flex: 1 1 100%;
+    box-sizing: border-box;
 }
 
 .upload-section h2,
@@ -308,7 +201,6 @@
     margin-bottom: 1.5rem;
     text-align: center;
     text-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
-    transform: translateZ(20px);
 }
 
 .action-button {
@@ -321,7 +213,6 @@
     transition: all 0.3s ease;
     width: 100%;
     margin-top: 1rem;
-    transform: translateZ(10px);
 }
 
 .upload-button,
@@ -331,54 +222,29 @@
     box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
 }
 
-.upload-button:hover:not(:disabled),
-.upload-recorded-button:hover:not(:disabled) {
-    transform: translateZ(20px) translateY(-3px);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.6);
-}
-
 .record-button {
     background: linear-gradient(45deg, #34d399, #6ee7b7);
     color: #ffffff;
-    box-shadow: 0 5px 15px rgba(52, 211, 153, 0.4);
-}
-
-.record-button:hover:not(:disabled) {
-    transform: translateZ(20px) translateY(-3px);
-    box-shadow: 0 8px 20px rgba(52, 211, 153, 0.6);
 }
 
 .stop-record-button {
     background: linear-gradient(45deg, #ef4444, #f87171);
     color: #ffffff;
-    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
-}
-
-.stop-record-button:hover:not(:disabled) {
-    transform: translateZ(20px) translateY(-3px);
-    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.6);
 }
 
 .rerecord-button {
     background: linear-gradient(45deg, #f59e0b, #fbbf24);
     color: #ffffff;
-    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
-}
-
-.rerecord-button:hover:not(:disabled) {
-    transform: translateZ(20px) translateY(-3px);
-    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.6);
 }
 
 .action-button:disabled {
     background: #6b7280;
     cursor: not-allowed;
-    transform: translateZ(0);
+    transform: none;
     box-shadow: none;
     opacity: 0.7;
 }
 
-/* Video Elements */
 .video-area {
     margin-bottom: 1rem;
     display: flex;
@@ -387,55 +253,17 @@
     gap: 0.5rem;
 }
 
-.webcam-preview {
-    width: 100%;
-    max-width: 350px;
-    background-color: #000;
-    border: 2px solid rgba(59, 130, 246, 0.5);
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
-    transition: all 0.3s ease;
-    transform: translateZ(10px);
-}
-
-.webcam-preview:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-    transform: translateZ(20px);
-}
-
-.recorded-preview-container {
-    width: 100%;
-    max-width: 350px;
-    margin-top: 0.5rem;
-    text-align: center;
-}
-
-.recorded-preview-container h3 {
-    font-size: 1.1rem;
-    color: #d1d5db;
-    margin-bottom: 0.5rem;
-    transform: translateZ(0);
-}
-
+.webcam-preview,
 .recorded-preview {
     width: 100%;
+    max-width: 100%;
     height: auto;
     background-color: #000;
     border: 2px solid rgba(59, 130, 246, 0.5);
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
-    transition: all 0.3s ease;
-    transform: translateZ(10px);
 }
 
-.recorded-preview:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-    transform: translateZ(20px);
-}
-
-/* Recording Controls */
 .recording-controls {
     display: flex;
     justify-content: center;
@@ -456,130 +284,48 @@
     align-items: center;
     gap: 0.5rem;
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
-    transform: translateZ(10px);
 }
 
-.timer-icon {
-    color: #ef4444;
-    font-size: 1.2rem;
-}
-
-.no-video-message {
-    color: #9ca3af;
-    margin: 0.5rem 0;
-    font-size: 1rem;
-    transform: translateZ(0);
-}
-
-/* Responsive Design */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
     .main-content {
-        padding: 1.5rem 0.5rem;
-    }
-
-    .main-content h1 {
-        font-size: 2.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .website-info {
-        padding: 1.5rem;
-        margin-bottom: 2rem;
+        padding: 1.5rem 1rem;
     }
 
     .video-input-options {
-        padding: 1.5rem;
+        padding: 1.5rem 1rem;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .upload-record-sections {
         flex-direction: column;
-        gap: 1rem;
-        rem: column;
-        width:98%
+        gap: 1.5rem;
+        align-items: center;
     }
 
+    .upload-section,
     .record-section {
         padding: 1rem;
-        width:95%
-    }
-    
-    .upload-section {
-        padding: 1rem;
-        width:95%
-    }
-
-    .upload-section h2 {
-        font-size: 1.6rem;
-        width:98%
-        
-}
-
-    .record-form {
-        margin-bottom: 1rem;
-}
-
-    inputfile-input {
-        padding: 0.95rem;
-        font-size: 0.6rem;
-        width: 92%;
-}
-
-    .form-label {
-        font-size: 1rem;
-        top: 1rem;
-        left: 1.2rem;
-    }
-
-    .action-button {
-        padding: 0.8rem;
-        font-size: 1rem;
-}
-
-    .webcam-preview {
+        width: 100%;
         max-width: 100%;
+    }
+
+    .form-input,
+    .file-input,
+    .action-button {
+        width: 100%;
+        font-size: 1rem;
+        padding: 0.9rem;
     }
 
     .recording-controls {
         flex-direction: column;
-        gap: 0.8rem;
-}
-
-    .recording {
         width: 100%;
-        justify-content: 1rem;
-        font-size: center;
-    }
-}
-
-@media screen and (min-width: 481px) and (max-width: 768px) {
-    .content-main {
-        padding: 2rem;
+        gap: 0.8rem;
     }
 
-    .content-main h1 {
-        font-size: 3rem;
-    }
-
-    .upload-sections {
-    flex-direction: column;
-    gap: 1.8rem;
-}
-
-    .record-section {
-        padding: 1.2rem;
-    }
-
-    .upload-section {
-      padding: 1rem;
-    }
-}
-
-@media screen and (min-width: 769px) {
-    .content-main {
-        padding: 3rem;
-    }
-
-    .upload-section {
-        padding: 2rem;
+    .recording-timer {
+        width: 100%;
+        text-align: center;
     }
 }
