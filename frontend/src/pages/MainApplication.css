@@ -494,33 +494,46 @@
     .upload-record-sections {
         flex-direction: column;
         gap: 1rem;
+        rem: column;
+        width:98%
     }
 
-    .upload-section,
     .record-section {
         padding: 1rem;
-        width: 95%;
+        width:95%
+    }
+    
+    .upload-section {
+        padding: 1rem;
+        width:95%
     }
 
-    .upload-section h2,
-    .record-section h2 {
+    .upload-section h2 {
         font-size: 1.6rem;
-    }
+        width:98%
+        
+}
 
-    .form-input,
-    .file-input {
+    .record-form {
+        margin-bottom: 1rem;
+}
+
+    inputfile-input {
         padding: 0.95rem;
-        font-size: 0.9rem;
-    }
+        font-size: 0.6rem;
+        width: 92%;
+}
 
     .form-label {
         font-size: 1rem;
+        top: 1rem;
+        left: 1.2rem;
     }
 
     .action-button {
         padding: 0.8rem;
         font-size: 1rem;
-    }
+}
 
     .webcam-preview {
         max-width: 100%;
@@ -529,31 +542,40 @@
     .recording-controls {
         flex-direction: column;
         gap: 0.8rem;
+}
+
+    .recording {
+        width: 100%;
+        justify-content: 1rem;
+        font-size: center;
     }
 }
 
 @media screen and (min-width: 481px) and (max-width: 768px) {
-    .main-content {
+    .content-main {
         padding: 2rem;
     }
 
-    .main-content h1 {
+    .content-main h1 {
         font-size: 3rem;
     }
 
-    .upload-record-sections {
-        flex-direction: column;
-        gap: 1.8rem;
+    .upload-sections {
+    flex-direction: column;
+    gap: 1.8rem;
+}
+
+    .record-section {
+        padding: 1.2rem;
     }
 
-    .record-section,
     .upload-section {
-        padding: 1.2rem;
+      padding: 1rem;
     }
 }
 
 @media screen and (min-width: 769px) {
-    .main-content {
+    .content-main {
         padding: 3rem;
     }
 
