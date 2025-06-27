@@ -304,12 +304,12 @@ const uploadVideo = asyncHandler(async (req, res) => {
             throw new Error('Server Error: Cloudinary is not configured correctly. Missing API credentials.');
         }
         if (!process.env.BACKEND_URL) {
-            console.error('[UploadController] BACKEND_URL environment variable is not set. Cloudinary webhook will not work.');
+            console.error('[UploadController] RENDER_BACKEND_URL environment variable is not set. Cloudinary webhook will not work.');
             res.status(500);
-            throw new Error('Server Error: BACKEND_URL environment variable is not set.');
+            throw new Error('Server Error: RENDER_BACKEND_URL environment variable is not set.');
         }
 
-        const notificationUrl = `${process.env.BACKEND_URL}/api/analysis/cloudinary-webhook`; // THIS IS THE CORRECTED WEBHOOK URL
+        const notificationUrl = `${process.env.RENDER_BACKEND_URL}/api/analysis/cloudinary-webhook`; // THIS IS THE CORRECTED WEBHOOK URL
         console.log(`[UploadController] Using Cloudinary webhook URL: ${notificationUrl}`);
         console.log('[UploadController] Attempting direct upload to Cloudinary with webhook notification...');
 
