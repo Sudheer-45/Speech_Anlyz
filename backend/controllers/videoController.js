@@ -437,5 +437,5 @@ module.exports = {
     uploadVideo,
     getUserVideos,
     handleCloudinaryWebhook,
-    checkVideoStatus
+    checkVideoStatus // Make sure this is exported
 };
