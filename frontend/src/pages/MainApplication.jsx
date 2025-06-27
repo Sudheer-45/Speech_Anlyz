@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AuthenticatedNavbar from './components/AuthenticatedNavbar';
+import AuthenticatedNavbar from '../components/AuthenticatedNavbar';
 import Footer from './components/Footer';
 import axios from 'axios';
 import Webcam from 'react-webcam';
