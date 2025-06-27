@@ -1,21 +1,29 @@
 // backend/routes/webhookRoutes.js
 const express = require('express');
 const router = express.Router();
-const { handleCloudinaryWebhook } = require('../controllers/videoController'); // Import the handler
+const { handleCloudinaryWebhook } = require('../controllers/videoController');
 
-// IMPORTANT: This middleware needs to be before the route handler to ensure req.rawBody is available.
-// It parses the incoming webhook body as a raw buffer and then stringifies it for signature verification.
-router.use(express.raw({ type: 'application/json' }));
+// This middleware specifically for raw body parsing.
+// It should be placed BEFORE any other body parsing middleware (like express.json())
+// for the paths it's intended to handle.
+router.use(express.text({ type: '*/*' })); // Parses all incoming request bodies as raw text
+
+// Custom middleware to set req.rawBody and then attempt to parse req.body as JSON
 router.use((req, res, next) => {
-    if (req.body) {
-        req.rawBody = req.body.toString('utf8'); // Convert buffer to string
+    // req.body from express.text() will be the raw string if type: '*/*' is used
+    if (typeof req.body === 'string' && req.body.length > 0) {
+        req.rawBody = req.body; // Store the raw string
         try {
-            req.body = JSON.parse(req.rawBody); // Try to re-parse as JSON for controller access
+            // Attempt to parse as JSON for the controller to use req.body as an object
+            req.body = JSON.parse(req.rawBody);
         } catch (e) {
-            console.warn('[WebhookMiddleware] Could not parse raw body as JSON, proceeding with raw string:', e.message);
-            // If JSON parsing fails, req.body will remain the buffer, which handleCloudinaryWebhook might not like.
-            // However, req.rawBody (the string) is explicitly passed to api_sign_request.
+            console.warn('[WebhookMiddleware] Could not parse raw body as JSON, proceeding with raw string for signature verification.', e.message);
+            // If parsing fails, req.body remains the raw string, handleCloudinaryWebhook must use req.rawBody
         }
+    } else {
+        // If req.body is not a string (e.g., empty or unexpected type), set rawBody to undefined/null
+        req.rawBody = undefined;
+        console.warn('[WebhookMiddleware] req.body was not a string or was empty for raw body capture.');
     }
     next();
 });
