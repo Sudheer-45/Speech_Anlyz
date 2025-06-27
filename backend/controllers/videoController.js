@@ -423,13 +423,14 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     console.log('DEBUG: [WebhookController] Full webhook body:', JSON.stringify(req.body, null, 2));
     
     // Add debugging for rawBody and timestamp before signature calculation
-    console.log('DEBUG: [WebhookController] Raw Body for signature:', req.rawBody);
+    const rawBodyString = typeof req.rawBody === 'string' ? req.rawBody : JSON.stringify(req.body); // Ensure it's a string
+    console.log('DEBUG: [WebhookController] Raw Body for signature (stringified):', rawBodyString);
     console.log('DEBUG: [WebhookController] Timestamp for signature:', req.headers['x-cld-timestamp']);
 
 
     const signature = req.headers['x-cld-signature'];
     const timestamp = req.headers['x-cld-timestamp'];
-    const rawBody = req.rawBody; // Express needs to parse raw body for this to work (see server.js config)
+    const rawBody = rawBodyString; // Use the stringified raw body
 
     if (!signature || !timestamp || !rawBody) {
         console.error('[WebhookController] Missing Cloudinary webhook headers or raw body for signature verification.');
@@ -440,12 +441,14 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
         const expectedSignature = cloudinary.utils.api_sign_request(rawBody, process.env.CLOUDINARY_API_SECRET, timestamp);
         if (expectedSignature !== signature) {
             console.error('[WebhookController] Webhook signature verification failed! Expected:', expectedSignature, 'Received:', signature);
-            return res.status(401).send('Invalid webhook signature');
+            // DO NOT return 401 here to avoid Cloudinary retrying endlessly if the secret is wrong.
+            // Just log and respond with 200 so Cloudinary considers it delivered.
+            return res.status(200).send('Invalid webhook signature (logged as warning)');
         }
         console.log('[WebhookController] Webhook signature verified successfully.');
     } catch (sigErr) {
         console.error('[WebhookController] Error during webhook signature verification:', sigErr);
-        return res.status(400).send('Webhook signature verification error.');
+        return res.status(200).send('Webhook signature verification error (logged as warning)'); // Respond 200
     }
 
     const { notification_type, public_id, url, secure_url, status, error, eager } = req.body; // Added 'eager' for transformations status
