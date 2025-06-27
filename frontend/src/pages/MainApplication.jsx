@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AuthenticatedNavbar from '../components/AuthenticatedNavbar';
-import Footer from '../components/Footer';
+import AuthenticatedNavbar from './components/AuthenticatedNavbar';
+import Footer from './components/Footer';
 import axios from 'axios';
 import Webcam from 'react-webcam';
 import './MainApplication.css';
@@ -14,7 +14,7 @@ const videoConstraints = {
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
 const POLLING_INTERVAL = 3000; // 3 seconds
-const MAX_POLLING_ATTEMPTS = 20; // ~1 minute timeout
+const MAX_POLLING_ATTEMPTS = 60; // Increased to 3 minutes (60 * 3 seconds) for longer processing
 
 function MainApplication() {
     const navigate = useNavigate();
@@ -48,7 +48,7 @@ function MainApplication() {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
         }
-        pollingAttemptsRef.current = 0;
+        pollingAttemptsRef.current = 0; // Reset attempts when stopping
     };
 
     const checkVideoStatus = async (videoId) => {
@@ -56,7 +56,8 @@ function MainApplication() {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('User not authenticated');
 
-            const response = await axios.get(`${RENDER_BACKEND_URL}/api/videos/status/${videoId}`, {
+            // FIX: Corrected the polling URL to match backend route /api/status/:videoId
+            const response = await axios.get(`${RENDER_BACKEND_URL}/api/status/${videoId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             return response.data;
@@ -67,42 +68,54 @@ function MainApplication() {
     };
 
     const startPolling = (videoId, videoName) => {
-        stopPolling();
+        stopPolling(); // Ensure any previous polling is stopped
         pollingRef.current = setInterval(async () => {
             try {
                 pollingAttemptsRef.current += 1;
                 
                 if (pollingAttemptsRef.current > MAX_POLLING_ATTEMPTS) {
                     stopPolling();
-                    setMessage('Analysis is taking longer than expected. Please check back later.');
+                    setMessage('Analysis is taking longer than expected. Please check back later or view your videos on the dashboard.');
                     setIsError(true);
                     return;
                 }
 
                 const statusResponse = await checkVideoStatus(videoId);
-                setMessage(`Processing video (${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
+                setMessage(`Processing video (Status: ${statusResponse.status}). Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}...`);
 
                 if (statusResponse.status === 'analyzed') {
                     stopPolling();
+                    setMessage('Video analysis completed!');
+                    setIsError(false); // Clear error state on success
                     navigate('/app/results', { 
                         state: { 
                             videoRecordId: videoId,
-                            videoUrl: statusResponse.videoUrl,
+                            videoUrl: statusResponse.videoUrl, // Make sure this is passed
                             videoName,
-                            analysisId: statusResponse.analysisId
+                            analysisId: statusResponse.analysisId,
+                            analysisData: statusResponse.analysisData // Pass the full analysis data
                         } 
                     });
                 } else if (statusResponse.status === 'failed') {
                     stopPolling();
-                    setMessage(`Analysis failed: ${statusResponse.error || 'Unknown error'}`);
+                    setMessage(`Analysis failed: ${statusResponse.errorMessage || 'Unknown error'}. Please try again.`);
                     setIsError(true);
+                } else if (statusResponse.status === 'Cloudinary Uploading') {
+                    setMessage(`Cloudinary Uploading (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
+                } else if (statusResponse.status === 'processing') {
+                    setMessage(`Cloudinary Processing (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
+                } else if (statusResponse.status === 'analyzing') {
+                    setMessage(`Analyzing Video (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
                 }
             } catch (error) {
                 console.error('Polling error:', error);
-                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
+                // Only stop polling definitively if max attempts reached or specific critical error
+                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS || error.response?.status === 404 || error.response?.status === 403) {
                     stopPolling();
-                    setMessage('Failed to check status. Please refresh the page.');
+                    setMessage(`Failed to check status: ${error.response?.data?.message || error.message}. Please refresh the page.`);
                     setIsError(true);
+                } else {
+                    setMessage(`Retrying status check... Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}`);
                 }
             }
         }, POLLING_INTERVAL);
@@ -139,14 +152,20 @@ function MainApplication() {
                 }
             });
 
-            const { videoId, message: responseMessage } = uploadResponse.data;
+            // Capture videoRecordId from the backend response
+            const { videoRecordId, message: responseMessage } = uploadResponse.data;
             
+            if (!videoRecordId) {
+                throw new Error('Backend did not return a video record ID.');
+            }
+
             setMessage(responseMessage || 'Video uploaded. Processing may take a few minutes...');
             cleanupAfterUpload();
-            startPolling(videoId, nameForVideo || fileToUpload.name);
+            // Pass the captured videoRecordId to startPolling
+            startPolling(videoRecordId, nameForVideo || fileToUpload.name);
 
         } catch (error) {
-            stopPolling();
+            stopPolling(); // Stop polling if initial upload fails
             handleUploadError(error);
         } finally {
             setIsLoading(false);
@@ -165,9 +184,9 @@ function MainApplication() {
 
     const handleUploadError = (error) => {
         const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Video upload failed. Please try again.';
+                             error.response?.data?.error || 
+                             error.message || 
+                             'Video upload failed. Please try again.';
         setMessage(errorMessage);
         setIsError(true);
         console.error('Upload Error:', error);
@@ -195,6 +214,7 @@ function MainApplication() {
         setRecordingAttemptStarted(false);
         clearInterval(timerIntervalRef.current);
         setRecordedTime(0);
+        stopPolling(); // Also stop any lingering polling
     };
 
     const handleDataAvailable = useCallback(({ data }) => {
@@ -288,18 +308,20 @@ function MainApplication() {
         setShowWebcam(true);
         setMessage('');
         setIsError(false);
-    }, [recordedVideoURL]);
+    }, []);
 
     useEffect(() => {
+        // Cleanup function for when component unmounts
         return () => {
-            stopPolling();
-            clearInterval(timerIntervalRef.current);
-            if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
+            stopPolling(); // Stop polling if component unmounts
+            clearInterval(timerIntervalRef.current); // Clear recording timer
+            if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL); // Revoke recorded video URL
+            // Stop webcam tracks if they are still active
             if (webcamRef.current?.stream) {
                 webcamRef.current.stream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [recordedVideoURL]);
+    }, [recordedVideoURL]); // Dependency on recordedVideoURL for object URL cleanup
 
     return (
         <div className="main-app-container">
