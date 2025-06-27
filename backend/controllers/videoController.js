@@ -3,7 +3,7 @@ const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
 const cloudinary = require('cloudinary').v2;
-const crypto = require('crypto'); // For webhook signature verification (recommended for prod)
+const crypto = require('crypto'); // Used for webhook signature verification
 
 // Cloudinary configuration (ensure env vars are set in Render)
 cloudinary.config({
@@ -26,10 +26,14 @@ if (process.env.ASSEMBLYAI_API_KEY) {
     console.error('ASSEMBLYAI_API_KEY environment variable is not set. Speech-to-Text will not function.');
 }
 
-// Gemini API key (for LLM analysis, ensure this is still set in Render as GEMINI_API_KEY)
+// Gemini API key (for LLM analysis)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// LanguageTool grammar analysis
+/**
+ * Analyzes grammar using the LanguageTool API.
+ * @param {string} text - The transcription text to analyze.
+ * @returns {Promise<{score: number, issues: Array<Object>}>} Grammar score and issues.
+ */
 const analyzeGrammar = async (text) => {
     try {
         console.log('[LanguageTool] Sending text to LanguageTool API...');
@@ -53,7 +57,11 @@ const analyzeGrammar = async (text) => {
     }
 };
 
-// Function to transcribe audio from a VIDEO URL using AssemblyAI
+/**
+ * Transcribes audio from a video URL using AssemblyAI.
+ * @param {string} videoUrl - The URL of the video to transcribe.
+ * @returns {Promise<string>} The transcribed text or an error message.
+ */
 const transcribeAudio = async (videoUrl) => {
     if (!assemblyAIClient) {
         console.error('[AssemblyAI] client not initialized. Cannot transcribe.');
@@ -85,7 +93,11 @@ const transcribeAudio = async (videoUrl) => {
     }
 };
 
-// Function to analyze speech properties using Gemini API
+/**
+ * Analyzes speech properties (filler words, rate, sentiment, etc.) using Gemini API.
+ * @param {string} transcription - The transcribed text of the speech.
+ * @returns {Promise<Object>} The analysis results from Gemini.
+ */
 const analyzeSpeechWithGemini = async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('[Gemini] GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
@@ -177,7 +189,15 @@ const analyzeSpeechWithGemini = async (transcription) => {
     }
 };
 
-// --- HELPER FUNCTION TO RUN ANALYSIS ---
+/**
+ * Runs the full analysis pipeline: transcription, grammar, Gemini analysis, and saves results.
+ * @param {string} videoRecordId - MongoDB _id of the video record.
+ * @param {string} videoUrl - The Cloudinary secure URL of the video.
+ * @param {string} userId - MongoDB _id of the user.
+ * @param {string} originalname - Original filename of the video.
+ * @param {string} videoName - User-provided name for the video.
+ * @param {string} videoCloudinaryPublicId - Cloudinary public ID of the video.
+ */
 const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname, videoName, videoCloudinaryPublicId) => {
     let videoRecord = null;
     try {
@@ -246,9 +266,11 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
     }
 };
 
-// @desc    Upload a video and initiate Cloudinary upload
-// @route   POST /api/upload
-// @access  Private
+/**
+ * Handles video upload, initiates Cloudinary upload, and creates a video record.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
 const uploadVideo = asyncHandler(async (req, res) => {
     console.log('--- [UploadController] Received upload request ---');
     console.log('DEBUG: [UploadController] Received req.file object from Multer:', {
@@ -377,17 +399,21 @@ const uploadVideo = asyncHandler(async (req, res) => {
     }
 });
 
-// @desc    Get all videos for a logged-in user
-// @route   GET /api/user/videos
-// @access  Private
+/**
+ * Gets all video records for the authenticated user.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
 const getUserVideos = asyncHandler(async (req, res) => {
     const videos = await Video.find({ userId: req.user._id }).sort({ uploadDate: -1 });
     res.status(200).json({ videos });
 });
 
-// @desc    Check video status by videoId
-// @route   GET /api/status/:videoId
-// @access  Private
+/**
+ * Checks the status of a specific video and returns its details and analysis if available.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
 const checkVideoStatus = asyncHandler(async (req, res) => {
     const videoId = req.params.videoId;
     const userId = req.user._id;
@@ -436,6 +462,6 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
 module.exports = {
     uploadVideo,
     getUserVideos,
-    handleCloudinaryWebhook,
-    checkVideoStatus // Make sure this is exported
+    handleCloudinaryWebhook, // <--- This function is defined above and should be available.
+    checkVideoStatus
 };
