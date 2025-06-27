@@ -3,7 +3,7 @@ const Video = require('../models/Video'); // Your Video Model
 const Analysis = require('../models/Analysis'); // Your Analysis Model
 const asyncHandler = require('express-async-handler'); // For simplifying async error handling
 const cloudinary = require('cloudinary').v2; // Cloudinary SDK
-const crypto = require('crypto'); // Used for manual webhook signature verification (not primarily used for Cloudinary)
+const crypto = require('crypto'); // Built-in Node.js crypto (less relevant for Cloudinary signature itself now)
 
 // Cloudinary configuration (ensure env vars are set in Render)
 cloudinary.config({
@@ -230,8 +230,9 @@ const runAnalysisPipeline = asyncHandler(async (videoRecordId, videoUrl, userId,
         const geminiAnalysis = await analyzeSpeechWithGemini(transcription);
         console.log('[AnalysisPipeline] Completed Gemini analysis.');
 
+        // FIX: Ensure userId is correctly passed to Analysis.create
         const newAnalysis = await Analysis.create({
-            userId: userId, // Keep userId for Analysis model
+            userId: userId, // Keep userId for Analysis model as per its schema
             videoRecordId: videoRecordId,
             videoUrl: videoUrl,
             videoPath: videoCloudinaryPublicId, 
