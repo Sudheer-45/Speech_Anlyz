@@ -21,14 +21,19 @@ app.use(cors({
     credentials: true,
 }));
 
-// Webhook route must be mounted before express.json()
-app.use('/api/webhook', require('./routes/webhookRoutes'));
+// 🛡️ Webhook route using raw body for signature verification
+const expressRaw = express.raw({ type: 'application/json' });
+const webhookHandler = require('./routes/webhookRoutes');
+app.use('/api/webhook', expressRaw, (req, res, next) => {
+    req.rawBody = req.body.toString('utf8'); // Attach rawBody string for signature
+    next();
+}, webhookHandler);
 
-// General middleware for body parsing (after webhook route)
+// Parse body for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve static uploaded files (optional)
+// Static uploads path
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rate limiter for feedback endpoint
@@ -37,7 +42,7 @@ const limiter = rateLimit({
     max: 10
 });
 
-// Scheduled job for checking stalled videos
+// Scheduled job for stalled video recovery
 const checkStalledVideos = async () => {
     try {
         const stalledVideos = await Video.find({
@@ -47,7 +52,6 @@ const checkStalledVideos = async () => {
 
         if (stalledVideos.length > 0) {
             console.warn(`Found ${stalledVideos.length} stalled videos.`);
-            // Optional: add recovery logic here
         }
     } catch (err) {
         console.error('Error checking stalled videos:', err);
@@ -55,7 +59,7 @@ const checkStalledVideos = async () => {
 };
 setInterval(checkStalledVideos, 30 * 60 * 1000);
 
-// Routes
+// All other routes
 app.use('/api/feedback', limiter);
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
 app.use('/api/auth', require('./routes/auth'));
@@ -63,12 +67,12 @@ app.use('/api', require('./routes/video'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/analysis', require('./routes/analysisRoutes'));
 
-// Basic health check route
+// Health check
 app.get('/', (req, res) => {
     res.send('Speech Analyzer API is running...');
 });
 
-// Global error handler
+// Error handler
 app.use(errorHandler);
 
 // Start server
