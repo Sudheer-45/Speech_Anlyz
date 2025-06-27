@@ -3,7 +3,7 @@ const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
 const cloudinary = require('cloudinary').v2;
-const crypto = require('crypto');
+const crypto = require('crypto'); // For webhook signature verification (recommended for prod)
 
 // Cloudinary configuration (ensure env vars are set in Render)
 cloudinary.config({
@@ -29,7 +29,7 @@ if (process.env.ASSEMBLYAI_API_KEY) {
 // Gemini API key (for LLM analysis, ensure this is still set in Render as GEMINI_API_KEY)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// LanguageTool grammar analysis (No changes)
+// LanguageTool grammar analysis
 const analyzeGrammar = async (text) => {
     try {
         console.log('[LanguageTool] Sending text to LanguageTool API...');
@@ -53,7 +53,7 @@ const analyzeGrammar = async (text) => {
     }
 };
 
-// Function to transcribe audio from a VIDEO URL using AssemblyAI (No changes)
+// Function to transcribe audio from a VIDEO URL using AssemblyAI
 const transcribeAudio = async (videoUrl) => {
     if (!assemblyAIClient) {
         console.error('[AssemblyAI] client not initialized. Cannot transcribe.');
@@ -85,7 +85,7 @@ const transcribeAudio = async (videoUrl) => {
     }
 };
 
-// Function to analyze speech properties using Gemini API (No changes)
+// Function to analyze speech properties using Gemini API
 const analyzeSpeechWithGemini = async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('[Gemini] GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
@@ -437,86 +437,5 @@ module.exports = {
     uploadVideo,
     getUserVideos,
     handleCloudinaryWebhook,
-    checkVideoStatus // Make sure this is exported
-};
-
-Alright, I've thoroughly reviewed your `authMiddleware.js` and `videoController.js` files, specifically looking at the `protect` middleware, `getUserVideos` function, and the newly added `checkVideoStatus` function.
-
-**Excellent news:** All three of these functions are correctly defined as asynchronous functions wrapped with `asyncHandler` and are properly exported from their respective `module.exports` objects.
-
-This confirms that the `TypeError: argument handler must be a function` you've been seeing **is not originating from the definitions or exports within these two files.**
-
-**The `TypeError` must be happening when these functions are *used* in your route definitions, or due to how your `server.js` is setting up the routes.** It's very likely a conflict or incorrect import path in `backend/routes/video.js` or `backend/server.js`.
-
-Let's focus on these two files again, especially the `video.js` file, as the error specifically points to `backend/routes/video.js:54:8`.
-
-**Here's the plan:**
-
-1.  **I'll provide the expected `backend/routes/video.js`** to ensure it's correct.
-2.  **I'll provide the expected `backend/server.js`** to ensure the routing and raw body parsing for webhooks are correctly configured.
-
-You **must use these exact versions** for your `video.js` and `server.js` files.
-
----
-
-### **1. `backend/routes/video.js` (Final Review and Update)**
-
-This file defines the video-related routes. The critical part is ensuring `protect`, `uploadVideo`, `getUserVideos`, and `checkVideoStatus` are correctly imported and used as functions.
-
-
-```javascript
-// backend/routes/video.js
-const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const { protect } = require('../middleware/authMiddleware'); // Ensure 'protect' is correctly exported as a function here
-const asyncHandler = require('express-async-handler'); // Used for wrapping async functions
-
-const {
-    uploadVideo,
-    getUserVideos,
     checkVideoStatus
-} = require('../controllers/videoController'); // Ensure all are functions and exported
-
-// Configure Multer memory storage
-const storage = multer.memoryStorage();
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 200 * 1024 * 1024, // 200MB limit
-        files: 1 // Only allow single file upload
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedMimeTypes = [
-            'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
-            'video/x-flv', 'video/3gpp', 'video/mpeg', 'video/x-m4v'
-        ];
-
-        if (allowedMimeTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only video files are allowed!'), false);
-        }
-    }
-});
-
-// Route for uploading video
-// This path will be accessed via /api/upload given your server.js setup
-router.post(
-    '/upload',
-    protect, // Authentication middleware
-    upload.single('video'), // Multer middleware to handle file upload
-    // The actual controller function that processes the uploaded file and initiates Cloudinary upload
-    uploadVideo
-);
-
-// Route to get a list of user's uploaded videos
-// This path will be accessed via /api/user/videos (assuming server.js mounts video.js at /api)
-// This line (or near it) was indicated as line 54 in your error log.
-router.get('/user/videos', protect, getUserVideos);
-
-// Route to check a video's status
-// This path will be accessed via /api/status/:videoId
-router.get('/status/:videoId', protect, checkVideoStatus);
-
-module.exports = router;
+};
