@@ -1,4 +1,4 @@
-this is my server code,
+
 // backend/server.js
 const express = require('express');
 const dotenv = require('dotenv').config();
