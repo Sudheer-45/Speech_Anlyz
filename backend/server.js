@@ -14,19 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ✅ CORS Setup
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://commanalyzer.vercel.app'
-];
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (e.g., curl, mobile apps)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS not allowed from origin: ${origin}`));
-  },
-  credentials: true,
+    origin: process.env.CORS_ORIGIN,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
 }));
 
 // ✅ Ensure preflight requests work (CORS OPTIONS)
