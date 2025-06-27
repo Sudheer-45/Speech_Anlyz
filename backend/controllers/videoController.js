@@ -421,6 +421,11 @@ const getUserVideos = asyncHandler(async (req, res) => {
 const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     console.log('--- [WebhookController] Received Cloudinary webhook notification ---');
     console.log('DEBUG: [WebhookController] Full webhook body:', JSON.stringify(req.body, null, 2));
+    
+    // Add debugging for rawBody and timestamp before signature calculation
+    console.log('DEBUG: [WebhookController] Raw Body for signature:', req.rawBody);
+    console.log('DEBUG: [WebhookController] Timestamp for signature:', req.headers['x-cld-timestamp']);
+
 
     const signature = req.headers['x-cld-signature'];
     const timestamp = req.headers['x-cld-timestamp'];
@@ -524,7 +529,7 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             res.status(200).send('Webhook processed: Cloudinary processing failed, status updated.');
         } else {
             console.warn(`[WebhookController] Received unexpected Cloudinary processing status '${status}' for public_id: ${public_id}. No action taken.`);
-            res.status(200).send('Webhook processed: Unknown status, no action.');
+            res.status(200).send('Notification type not handled.');
         }
 
     } else {
