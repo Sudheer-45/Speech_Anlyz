@@ -231,10 +231,10 @@ const runAnalysisPipeline = asyncHandler(async (videoRecordId, videoUrl, userId,
         console.log('[AnalysisPipeline] Completed Gemini analysis.');
 
         const newAnalysis = await Analysis.create({
-            userId: userId,
+            userId: userId, // Keep userId for Analysis model
             videoRecordId: videoRecordId,
             videoUrl: videoUrl,
-            videoPath: videoCloudinaryPublicId, // Renamed from filePath to publicId in Video model, but Analysis still uses videoPath
+            videoPath: videoCloudinaryPublicId, 
             videoName: videoName || originalname,
             date: new Date(),
             transcription: transcription,
@@ -361,24 +361,25 @@ const uploadVideo = asyncHandler(async (req, res) => {
             throw new Error('Cloudinary initial upload failed: No public ID returned for tracking.');
         }
 
-        // FIX: Use 'publicId' as per VideoSchema
+        // FIX: Use 'publicId' as per VideoSchema and correct field names for Video.create
         videoCloudinaryPublicId = uploadResult.public_id; 
         const initialVideoCloudinaryUrl = uploadResult.secure_url; // This will likely be undefined
 
         let newVideoRecord;
         try {
             newVideoRecord = await Video.create({
-                userId: userId, // Ensure consistency with VideoSchema field name
+                user: userId, // FIX: Schema field is 'user', not 'userId'
                 filename: originalname,
                 videoName: videoName || originalname,
                 publicId: videoCloudinaryPublicId, // Use publicId from schema
                 videoUrl: initialVideoCloudinaryUrl, // Will be undefined/null, which is allowed by schema
-                status: 'uploading', // Matches enum: 'uploading'
+                // FIX: Use 'Cloudinary Uploading' as per VideoSchema enum
+                status: 'Cloudinary Uploading', 
                 uploadStartedAt: new Date(), // New field
                 bytes: size, // New field
                 mimetype: mimetype, // New field
             });
-            console.log('[UploadController] Video record created in DB with status "uploading":', newVideoRecord._id);
+            console.log('[UploadController] Video record created in DB with status "Cloudinary Uploading":', newVideoRecord._id);
         } catch (dbError) {
             console.error('[UploadController] Error saving video record to DB (initial status):', dbError);
             if (dbError.name === 'ValidationError') {
@@ -494,7 +495,7 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
                 runAnalysisPipeline(
                     videoRecord._id,
                     secure_url,
-                    videoRecord.userId, // FIX: Use userId as per schema
+                    videoRecord.user, // FIX: Use videoRecord.user as per schema for Analysis.create
                     videoRecord.filename,
                     videoRecord.videoName,
                     public_id 
@@ -536,8 +537,8 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const getUserVideos = asyncHandler(async (req, res) => {
-    // FIX: Use 'userId' as per VideoSchema
-    const videos = await Video.find({ userId: req.user._id }).sort({ uploadStartedAt: -1 }); 
+    // FIX: Use 'user' as per VideoSchema (Video model expects 'user' field for ID)
+    const videos = await Video.find({ user: req.user._id }).sort({ uploadStartedAt: -1 }); 
     res.status(200).json({ videos });
 });
 
@@ -563,15 +564,15 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
     }
 
     // Ensure the user is authorized to view this video's status
-    // FIX: Use 'userId' as per VideoSchema
-    if (video.userId.toString() !== userId.toString()) {
+    // FIX: Use 'user' as per VideoSchema (Video model has 'user' field for ID)
+    if (video.user.toString() !== userId.toString()) {
         res.status(403);
         throw new Error('Not authorized to view this video status.');
     }
 
     // If analysisId exists and status is 'analyzed' or 'failed', try to fetch analysis
-    let analysisData = null;
     // FIX: Use 'analysis' field directly from video object
+    let analysisData = null;
     if (video.analysis && (video.status === 'analyzed' || video.status === 'failed')) {
         try {
             analysisData = await Analysis.findById(video.analysis); // Use video.analysis as the ObjectId
