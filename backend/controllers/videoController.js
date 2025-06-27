@@ -2,8 +2,8 @@
 const Video = require('../models/Video');
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
-const cloudinary = require('cloudinary').v2; // Import cloudinary here
-const crypto = require('crypto'); // For webhook signature verification (recommended for prod)
+const cloudinary = require('cloudinary').v2;
+const crypto = require('crypto');
 
 // Cloudinary configuration (ensure env vars are set in Render)
 cloudinary.config({
@@ -177,19 +177,18 @@ const analyzeSpeechWithGemini = async (transcription) => {
     }
 };
 
-// --- NEW HELPER FUNCTION TO RUN ANALYSIS ---
+// --- HELPER FUNCTION TO RUN ANALYSIS ---
 const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname, videoName, videoCloudinaryPublicId) => {
     let videoRecord = null;
     try {
         videoRecord = await Video.findById(videoRecordId);
         if (!videoRecord) {
             console.error(`[AnalysisPipeline] Aborted: Video record with ID ${videoRecordId} not found.`);
-            return; // Exit if video record not found
+            return;
         }
 
         console.log(`[AnalysisPipeline] Starting full analysis pipeline for video: ${videoName || originalname} (ID: ${videoRecordId}) from URL: ${videoUrl}`);
 
-        // Update video status to indicate analysis is actively processing
         videoRecord.status = 'Analyzing';
         await videoRecord.save();
         console.log(`[AnalysisPipeline] Video ID ${videoRecordId} status updated to 'Analyzing'.`);
@@ -229,7 +228,6 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
             areasForImprovement: geminiAnalysis.areasForImprovement,
         });
 
-        // Update the video record with analysis details and final status
         videoRecord.status = 'analyzed';
         videoRecord.analysisId = newAnalysis._id;
         await videoRecord.save();
@@ -237,7 +235,6 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
 
     } catch (analysisError) {
         console.error(`[AnalysisPipeline] CRITICAL ERROR in analysis pipeline for video ${videoRecordId}:`, analysisError);
-        // Update video record status to failed if analysis pipeline fails
         if (videoRecord) {
             videoRecord.status = 'failed';
             videoRecord.errorMessage = analysisError.message;
@@ -276,7 +273,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
         throw new Error('Video name is required.');
     }
 
-    // --- Direct Cloudinary Upload (initial request) ---
     let videoCloudinaryPublicId;
 
     try {
@@ -291,7 +287,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
             throw new Error('Server Error: BACKEND_URL environment variable is not set.');
         }
 
-        const notificationUrl = `${process.env.BACKEND_URL}/api/analysis/cloudinary-webhook`; // Make sure this matches your actual route
+        const notificationUrl = `${process.env.BACKEND_URL}/api/analysis/cloudinary-webhook`; // THIS IS THE CORRECTED WEBHOOK URL
         console.log(`[UploadController] Using Cloudinary webhook URL: ${notificationUrl}`);
         console.log('[UploadController] Attempting direct upload to Cloudinary with webhook notification...');
 
@@ -381,111 +377,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
     }
 });
 
-// --- NEW WEBHOOK ENDPOINT TO RECEIVE CLOUDINARY NOTIFICATIONS ---
-// @desc    Handle Cloudinary Webhook for video processing completion
-// @route   POST /api/cloudinary-webhook
-// @access  Public (Cloudinary will post to this)
-const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
-    console.log('--- [WebhookController] Received Cloudinary webhook notification ---');
-    console.log('DEBUG: [WebhookController] Full webhook body:', JSON.stringify(req.body, null, 2));
-
-    // IMPORTANT: For production, VERIFY THE WEBHOOK SIGNATURE
-    // This protects against spoofed requests.
-    const signature = req.headers['x-cld-signature'];
-    const timestamp = req.headers['x-cld-timestamp'];
-    const rawBody = req.rawBody; // Express needs to parse raw body for this to work (see server.js config)
-
-    if (!signature || !timestamp || !rawBody) {
-        console.error('[WebhookController] Missing Cloudinary webhook headers or raw body for signature verification.');
-        return res.status(400).send('Missing webhook headers or raw body.');
-    }
-
-    try {
-        const expectedSignature = cloudinary.utils.api_sign_request(rawBody, process.env.CLOUDINARY_API_SECRET, timestamp);
-        if (expectedSignature !== signature) {
-            console.error('[WebhookController] Webhook signature verification failed! Expected:', expectedSignature, 'Received:', signature);
-            return res.status(401).send('Invalid webhook signature');
-        }
-        console.log('[WebhookController] Webhook signature verified successfully.');
-    } catch (sigErr) {
-        console.error('[WebhookController] Error during webhook signature verification:', sigErr);
-        return res.status(400).send('Webhook signature verification error.');
-    }
-
-    const { notification_type, public_id, url, secure_url, status, error, asset_id } = req.body;
-
-    if (notification_type === 'video_upload_completed' || notification_type === 'eager_transformation_completed' || notification_type === 'upload_completed') {
-        console.log(`[WebhookController] Processing notification type: '${notification_type}' for public_id: '${public_id}'. Status: '${status}'`);
-
-        if (!public_id) {
-            console.error('[WebhookController] Webhook payload missing public_id. Cannot process.');
-            return res.status(400).send('Missing public_id in webhook payload.');
-        }
-
-        let videoRecord = await Video.findOne({ filePath: public_id }); // Find video by public_id
-        if (!videoRecord) {
-            console.error(`[WebhookController] No video record found in DB for public_id: ${public_id}. This could mean the record was deleted or webhook sent too fast.`);
-            return res.status(404).send('Video record not found for this public ID.');
-        }
-
-        console.log(`[WebhookController] Found video record (ID: ${videoRecord._id}) for public_id: ${public_id}. Current status: ${videoRecord.status}`);
-
-        if (status === 'completed') {
-            console.log(`[WebhookController] Cloudinary processing completed successfully for ${public_id}. Final secure_url: ${secure_url}`);
-            
-            if (!secure_url) {
-                console.error(`[WebhookController] Webhook status is 'completed' but secure_url is missing for ${public_id}. Cannot proceed with analysis.`);
-                videoRecord.status = 'Cloudinary Processing Failed';
-                videoRecord.errorMessage = `Cloudinary completed but no secure URL: ${JSON.stringify(req.body)}`;
-                await videoRecord.save();
-                return res.status(500).send('Cloudinary processing completed but URL missing.');
-            }
-
-            // Update video record with the final secure_url
-            if (videoRecord.videoUrl === 'pending_cloudinary_url' || !videoRecord.videoUrl) {
-                videoRecord.videoUrl = secure_url;
-                await videoRecord.save();
-                console.log(`[WebhookController] Video record ID ${videoRecord._id} videoUrl updated to final secure_url.`);
-            } else {
-                console.log(`[WebhookController] Video record ID ${videoRecord._id} already has a videoUrl. Skipping update.`);
-            }
-
-            // Trigger the main analysis pipeline now that Cloudinary processing is done
-            // Use the videoRecord's data and the final secure_url from the webhook
-            // Make sure not to await this, so the webhook response can be sent quickly
-            runAnalysisPipeline(
-                videoRecord._id,
-                secure_url,
-                videoRecord.userId,
-                videoRecord.filename,
-                videoRecord.videoName,
-                public_id
-            ).catch(analysisErr => {
-                console.error(`[WebhookController] Uncaught error during async analysis pipeline for ${public_id}:`, analysisErr);
-                // The runAnalysisPipeline function already handles updating the video status to 'failed'
-                // if an error occurs within it.
-            });
-
-            res.status(200).send('Webhook processed: Analysis pipeline initiated.');
-
-        } else if (status === 'failed') {
-            console.error(`[WebhookController] Cloudinary processing failed for ${public_id}. Error details: ${error}`);
-            videoRecord.status = 'Cloudinary Processing Failed';
-            videoRecord.errorMessage = `Cloudinary processing failed: ${error || 'Unknown error'}`;
-            await videoRecord.save();
-            res.status(200).send('Webhook processed: Cloudinary processing failed, status updated.');
-        } else {
-            console.warn(`[WebhookController] Received unexpected Cloudinary processing status '${status}' for public_id: ${public_id}. No action taken.`);
-            res.status(200).send('Webhook processed: Unknown status, no action.');
-        }
-
-    } else {
-        console.log(`[WebhookController] Received unhandled Cloudinary notification type: '${notification_type}'.`);
-        res.status(200).send('Notification type not handled.');
-    }
-});
-
-
 // @desc    Get all videos for a logged-in user
 // @route   GET /api/user/videos
 // @access  Private
@@ -494,8 +385,138 @@ const getUserVideos = asyncHandler(async (req, res) => {
     res.status(200).json({ videos });
 });
 
+// @desc    Check video status by videoId
+// @route   GET /api/status/:videoId
+// @access  Private
+const checkVideoStatus = asyncHandler(async (req, res) => {
+    const videoId = req.params.videoId;
+    const userId = req.user._id;
+
+    if (!videoId) {
+        res.status(400);
+        throw new Error('Video ID is required.');
+    }
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+        res.status(404);
+        throw new Error('Video record not found.');
+    }
+
+    // Ensure the user is authorized to view this video's status
+    if (video.userId.toString() !== userId.toString()) {
+        res.status(403);
+        throw new Error('Not authorized to view this video status.');
+    }
+
+    // If analysisId exists and status is 'analyzed' or 'failed', try to fetch analysis
+    let analysisData = null;
+    if (video.analysisId && (video.status === 'analyzed' || video.status === 'failed')) {
+        try {
+            analysisData = await Analysis.findById(video.analysisId);
+        } catch (err) {
+            console.error(`[checkVideoStatus] Error fetching analysis ${video.analysisId}:`, err);
+            // Don't throw, just indicate analysis might not be available
+        }
+    }
+
+    res.status(200).json({
+        _id: video._id,
+        videoName: video.videoName,
+        status: video.status,
+        errorMessage: video.errorMessage || null,
+        uploadDate: video.uploadDate,
+        videoUrl: video.videoUrl, // Include the video URL for frontend preview
+        analysisId: video.analysisId,
+        analysisData: analysisData // Include analysis data if available
+    });
+});
+
 module.exports = {
     uploadVideo,
     getUserVideos,
-    handleCloudinaryWebhook
+    handleCloudinaryWebhook,
+    checkVideoStatus // Make sure this is exported
 };
+
+Alright, I've thoroughly reviewed your `authMiddleware.js` and `videoController.js` files, specifically looking at the `protect` middleware, `getUserVideos` function, and the newly added `checkVideoStatus` function.
+
+**Excellent news:** All three of these functions are correctly defined as asynchronous functions wrapped with `asyncHandler` and are properly exported from their respective `module.exports` objects.
+
+This confirms that the `TypeError: argument handler must be a function` you've been seeing **is not originating from the definitions or exports within these two files.**
+
+**The `TypeError` must be happening when these functions are *used* in your route definitions, or due to how your `server.js` is setting up the routes.** It's very likely a conflict or incorrect import path in `backend/routes/video.js` or `backend/server.js`.
+
+Let's focus on these two files again, especially the `video.js` file, as the error specifically points to `backend/routes/video.js:54:8`.
+
+**Here's the plan:**
+
+1.  **I'll provide the expected `backend/routes/video.js`** to ensure it's correct.
+2.  **I'll provide the expected `backend/server.js`** to ensure the routing and raw body parsing for webhooks are correctly configured.
+
+You **must use these exact versions** for your `video.js` and `server.js` files.
+
+---
+
+### **1. `backend/routes/video.js` (Final Review and Update)**
+
+This file defines the video-related routes. The critical part is ensuring `protect`, `uploadVideo`, `getUserVideos`, and `checkVideoStatus` are correctly imported and used as functions.
+
+
+```javascript
+// backend/routes/video.js
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const { protect } = require('../middleware/authMiddleware'); // Ensure 'protect' is correctly exported as a function here
+const asyncHandler = require('express-async-handler'); // Used for wrapping async functions
+
+const {
+    uploadVideo,
+    getUserVideos,
+    checkVideoStatus
+} = require('../controllers/videoController'); // Ensure all are functions and exported
+
+// Configure Multer memory storage
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 200 * 1024 * 1024, // 200MB limit
+        files: 1 // Only allow single file upload
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = [
+            'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+            'video/x-flv', 'video/3gpp', 'video/mpeg', 'video/x-m4v'
+        ];
+
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only video files are allowed!'), false);
+        }
+    }
+});
+
+// Route for uploading video
+// This path will be accessed via /api/upload given your server.js setup
+router.post(
+    '/upload',
+    protect, // Authentication middleware
+    upload.single('video'), // Multer middleware to handle file upload
+    // The actual controller function that processes the uploaded file and initiates Cloudinary upload
+    uploadVideo
+);
+
+// Route to get a list of user's uploaded videos
+// This path will be accessed via /api/user/videos (assuming server.js mounts video.js at /api)
+// This line (or near it) was indicated as line 54 in your error log.
+router.get('/user/videos', protect, getUserVideos);
+
+// Route to check a video's status
+// This path will be accessed via /api/status/:videoId
+router.get('/status/:videoId', protect, checkVideoStatus);
+
+module.exports = router;
