@@ -1,5 +1,5 @@
 // backend/controllers/videoController.js
-const Video = require('../models/Video');
+const Video = require('../models/Video'); // Your Video Model
 const Analysis = require('../models/Analysis');
 const asyncHandler = require('express-async-handler');
 const cloudinary = require('cloudinary').v2;
@@ -34,7 +34,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
  * @param {string} text - The transcription text to analyze.
  * @returns {Promise<{score: number, issues: Array<Object>}>} Grammar score and issues.
  */
-const analyzeGrammar = async (text) => {
+const analyzeGrammar = asyncHandler(async (text) => {
     try {
         console.log('[LanguageTool] Sending text to LanguageTool API...');
         const response = await fetch('https://api.languagetool.org/v2/check', {
@@ -55,14 +55,14 @@ const analyzeGrammar = async (text) => {
         console.error('[LanguageTool] error:', error.message);
         return { score: 80, issues: [] };
     }
-};
+});
 
 /**
  * Transcribes audio from a video URL using AssemblyAI.
  * @param {string} videoUrl - The URL of the video to transcribe.
  * @returns {Promise<string>} The transcribed text or an error message.
  */
-const transcribeAudio = async (videoUrl) => {
+const transcribeAudio = asyncHandler(async (videoUrl) => {
     if (!assemblyAIClient) {
         console.error('[AssemblyAI] client not initialized. Cannot transcribe.');
         return '[Transcription Failed: AssemblyAI client not ready]';
@@ -91,14 +91,14 @@ const transcribeAudio = async (videoUrl) => {
         console.error('[AssemblyAI] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return `[Transcription Failed: ${error.message}]`;
     }
-};
+});
 
 /**
  * Analyzes speech properties (filler words, rate, sentiment, etc.) using Gemini API.
  * @param {string} transcription - The transcribed text of the speech.
  * @returns {Promise<Object>} The analysis results from Gemini.
  */
-const analyzeSpeechWithGemini = async (transcription) => {
+const analyzeSpeechWithGemini = asyncHandler(async (transcription) => {
     if (!GEMINI_API_KEY) {
         console.error('[Gemini] GEMINI_API_KEY is not set. Cannot perform LLM analysis.');
         return {
@@ -187,7 +187,7 @@ const analyzeSpeechWithGemini = async (transcription) => {
         console.error('[Gemini] Error during analysis:', error);
         throw new Error('Failed to analyze speech with LLM: ' + error.message);
     }
-};
+});
 
 /**
  * Runs the full analysis pipeline: transcription, grammar, Gemini analysis, and saves results.
@@ -198,7 +198,7 @@ const analyzeSpeechWithGemini = async (transcription) => {
  * @param {string} videoName - User-provided name for the video.
  * @param {string} videoCloudinaryPublicId - Cloudinary public ID of the video.
  */
-const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname, videoName, videoCloudinaryPublicId) => {
+const runAnalysisPipeline = asyncHandler(async (videoRecordId, videoUrl, userId, originalname, videoName, videoCloudinaryPublicId) => {
     let videoRecord = null;
     try {
         videoRecord = await Video.findById(videoRecordId);
@@ -209,9 +209,11 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
 
         console.log(`[AnalysisPipeline] Starting full analysis pipeline for video: ${videoName || originalname} (ID: ${videoRecordId}) from URL: ${videoUrl}`);
 
-        videoRecord.status = 'Analyzing';
+        // Update status and set analysisStartedAt
+        videoRecord.status = 'analyzing'; // Matches enum: 'analyzing'
+        videoRecord.analysisStartedAt = new Date(); // Update timestamp
         await videoRecord.save();
-        console.log(`[AnalysisPipeline] Video ID ${videoRecordId} status updated to 'Analyzing'.`);
+        console.log(`[AnalysisPipeline] Video ID ${videoRecordId} status updated to 'analyzing'.`);
 
         const transcription = await transcribeAudio(videoUrl);
         if (transcription.startsWith('[Transcription Failed')) {
@@ -229,7 +231,7 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
             userId: userId,
             videoRecordId: videoRecordId,
             videoUrl: videoUrl,
-            videoPath: videoCloudinaryPublicId,
+            videoPath: videoCloudinaryPublicId, // Renamed from filePath to publicId in Video model, but Analysis still uses videoPath
             videoName: videoName || originalname,
             date: new Date(),
             transcription: transcription,
@@ -248,23 +250,28 @@ const runAnalysisPipeline = async (videoRecordId, videoUrl, userId, originalname
             areasForImprovement: geminiAnalysis.areasForImprovement,
         });
 
-        videoRecord.status = 'analyzed';
+        // Update the video record with analysis details and final status
+        videoRecord.status = 'analyzed'; // Matches enum: 'analyzed'
         videoRecord.analysisId = newAnalysis._id;
+        videoRecord.analysisCompletedAt = new Date(); // Update timestamp
         await videoRecord.save();
         console.log(`[AnalysisPipeline] Analysis complete and saved for video: ${videoName || originalname}. Analysis ID: ${newAnalysis._id}. Video status updated to 'analyzed'.`);
 
     } catch (analysisError) {
         console.error(`[AnalysisPipeline] CRITICAL ERROR in analysis pipeline for video ${videoRecordId}:`, analysisError);
+        // Update video record status to failed if analysis pipeline fails
         if (videoRecord) {
-            videoRecord.status = 'failed';
+            videoRecord.status = 'failed'; // Matches enum: 'failed'
             videoRecord.errorMessage = analysisError.message;
+            // Optionally update analysisCompletedAt if it's a "failure completion"
+            videoRecord.analysisCompletedAt = new Date();
             await videoRecord.save();
             console.log(`[AnalysisPipeline] Video ID ${videoRecordId} status updated to 'failed'. Error: ${analysisError.message}`);
         } else {
             console.error(`[AnalysisPipeline] Could not update video record status for ${videoRecordId} as it was not found.`);
         }
     }
-};
+});
 
 /**
  * Handles video upload, initiates Cloudinary upload, and creates a video record.
@@ -286,7 +293,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
         throw new Error('No video file buffer received. Multer did not process the upload correctly.');
     }
 
-    const { originalname, buffer } = req.file;
+    const { originalname, buffer, mimetype, size } = req.file; // Destructure mimetype and size
     const { videoName } = req.body;
     const userId = req.user._id;
 
@@ -303,14 +310,13 @@ const uploadVideo = asyncHandler(async (req, res) => {
             res.status(500);
             throw new Error('Server Error: Cloudinary is not configured correctly. Missing API credentials.');
         }
-        // FIX: Use RENDER_BACKEND_URL as per user's environment variable
-        if (!process.env.RENDER_BACKEND_URL) { // Changed from BACKEND_URL
+        if (!process.env.RENDER_BACKEND_URL) {
             console.error('[UploadController] RENDER_BACKEND_URL environment variable is not set. Cloudinary webhook will not work.');
             res.status(500);
             throw new Error('Server Error: RENDER_BACKEND_URL environment variable is not set.');
         }
 
-        const notificationUrl = `${process.env.RENDER_BACKEND_URL}/api/analysis/cloudinary-webhook`; // FIXED
+        const notificationUrl = `${process.env.RENDER_BACKEND_URL}/api/analysis/cloudinary-webhook`;
         console.log(`[UploadController] Using Cloudinary webhook URL: ${notificationUrl}`);
         console.log('[UploadController] Attempting direct upload to Cloudinary with webhook notification...');
 
@@ -351,12 +357,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
         }
 
         videoCloudinaryPublicId = uploadResult.public_id;
-        const initialVideoCloudinaryUrl = uploadResult.secure_url;
-
-        console.log(`[UploadController] Cloudinary initial upload request sent. Public ID: ${videoCloudinaryPublicId}`);
-        if (!initialVideoCloudinaryUrl) {
-            console.log('[UploadController] Note: Secure URL is not yet available, Cloudinary processing is asynchronous.');
-        }
+        const initialVideoCloudinaryUrl = uploadResult.secure_url; // This will likely be undefined
 
         let newVideoRecord;
         try {
@@ -364,12 +365,14 @@ const uploadVideo = asyncHandler(async (req, res) => {
                 userId,
                 filename: originalname,
                 videoName: videoName || originalname,
-                videoUrl: initialVideoCloudinaryUrl || 'pending_cloudinary_url',
-                filePath: videoCloudinaryPublicId,
-                status: 'Cloudinary Uploading',
-                uploadDate: new Date(),
+                publicId: videoCloudinaryPublicId, // Use publicId from schema
+                videoUrl: initialVideoCloudinaryUrl, // Will be undefined/null, which is allowed by schema
+                status: 'uploading', // Matches enum: 'uploading'
+                uploadStartedAt: new Date(), // New field
+                bytes: size, // New field
+                mimetype: mimetype, // New field
             });
-            console.log('[UploadController] Video record created in DB with Cloudinary pending status:', newVideoRecord._id);
+            console.log('[UploadController] Video record created in DB with status "uploading":', newVideoRecord._id);
         } catch (dbError) {
             console.error('[UploadController] Error saving video record to DB (initial status):', dbError);
             if (dbError.name === 'ValidationError') {
@@ -385,9 +388,9 @@ const uploadVideo = asyncHandler(async (req, res) => {
         res.status(202).json({
             message: 'Video upload initiated. Analysis will begin once Cloudinary processing is complete.',
             videoRecordId: newVideoRecord._id,
-            videoUrl: initialVideoCloudinaryUrl || null,
-            videoName: videoName || originalname,
-            publicId: videoCloudinaryPublicId,
+            videoUrl: newVideoRecord.videoUrl || null, // Will be null initially
+            videoName: newVideoRecord.videoName,
+            publicId: newVideoRecord.publicId,
             status: newVideoRecord.status
         });
 
@@ -406,7 +409,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const getUserVideos = asyncHandler(async (req, res) => {
-    const videos = await Video.find({ userId: req.user._id }).sort({ uploadDate: -1 });
+    const videos = await Video.find({ userId: req.user._id }).sort({ uploadStartedAt: -1 }); // Use uploadStartedAt for sorting
     res.status(200).json({ videos });
 });
 
@@ -440,9 +443,12 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
         return res.status(400).send('Webhook signature verification error.');
     }
 
-    const { notification_type, public_id, url, secure_url, status, error, asset_id } = req.body;
+    const { notification_type, public_id, url, secure_url, status, error, eager } = req.body; // Added 'eager' for transformations status
 
-    if (notification_type === 'video_upload_completed' || notification_type === 'eager_transformation_completed' || notification_type === 'upload_completed') {
+    // Cloudinary can send 'upload' type notifications with 'processing' or 'completed' status.
+    // An 'eager_transformation_completed' notification might also be sent if eager_async is true.
+    // For now, let's primarily react to the main 'upload' completion or 'eager_transformation_completed'.
+    if (notification_type === 'upload' || notification_type === 'eager_transformation_completed') {
         console.log(`[WebhookController] Processing notification type: '${notification_type}' for public_id: '${public_id}'. Status: '${status}'`);
 
         if (!public_id) {
@@ -450,7 +456,7 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
             return res.status(400).send('Missing public_id in webhook payload.');
         }
 
-        let videoRecord = await Video.findOne({ filePath: public_id }); // Find video by public_id
+        let videoRecord = await Video.findOne({ publicId: public_id }); // Use publicId from schema
         if (!videoRecord) {
             console.error(`[WebhookController] No video record found in DB for public_id: ${public_id}. This could mean the record was deleted or webhook sent too fast.`);
             return res.status(404).send('Video record not found for this public ID.');
@@ -458,48 +464,62 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
 
         console.log(`[WebhookController] Found video record (ID: ${videoRecord._id}) for public_id: ${public_id}. Current status: ${videoRecord.status}`);
 
+        // Update lastCheckedAt to show webhook was received and processed
+        videoRecord.lastCheckedAt = new Date();
+
         if (status === 'completed') {
-            console.log(`[WebhookController] Cloudinary processing completed successfully for ${public_id}. Final secure_url: ${secure_url}`);
-            
-            if (!secure_url) {
-                console.error(`[WebhookController] Webhook status is 'completed' but secure_url is missing for ${public_id}. Cannot proceed with analysis.`);
-                videoRecord.status = 'Cloudinary Processing Failed';
-                videoRecord.errorMessage = `Cloudinary completed but no secure URL: ${JSON.stringify(req.body)}`;
-                await videoRecord.save();
-                return res.status(500).send('Cloudinary processing completed but URL missing.');
-            }
+            // Check eager transformations if they exist and are important for 'processed' status
+            const allEagerCompleted = eager ? eager.every(t => t.status === 'completed') : true;
 
-            // Update video record with the final secure_url
-            if (videoRecord.videoUrl === 'pending_cloudinary_url' || !videoRecord.videoUrl) {
+            if (allEagerCompleted) {
+                console.log(`[WebhookController] Cloudinary processing and eager transformations completed successfully for ${public_id}. Final secure_url: ${secure_url}`);
+
+                if (!secure_url) {
+                    console.error(`[WebhookController] Webhook status is 'completed' but secure_url is missing for ${public_id}. Cannot proceed with analysis.`);
+                    videoRecord.status = 'failed'; // Matches enum: 'failed'
+                    videoRecord.errorMessage = `Cloudinary completed but no secure URL: ${JSON.stringify(req.body)}`;
+                    await videoRecord.save();
+                    return res.status(500).send('Cloudinary processing completed but URL missing.');
+                }
+
+                // Update video record with the final secure_url and set to 'processed'
                 videoRecord.videoUrl = secure_url;
+                videoRecord.status = 'processed'; // Matches enum: 'processed'
+                videoRecord.processingCompletedAt = new Date(); // Update timestamp
                 await videoRecord.save();
-                console.log(`[WebhookController] Video record ID ${videoRecord._id} videoUrl updated to final secure_url.`);
+                console.log(`[WebhookController] Video record ID ${videoRecord._id} videoUrl updated and status set to 'processed'.`);
+
+                // Trigger the main analysis pipeline now that Cloudinary processing is done
+                runAnalysisPipeline(
+                    videoRecord._id,
+                    secure_url,
+                    videoRecord.userId,
+                    videoRecord.filename,
+                    videoRecord.videoName,
+                    public_id // Use public_id
+                ).catch(analysisErr => {
+                    console.error(`[WebhookController] Uncaught error during async analysis pipeline for ${public_id}:`, analysisErr);
+                    // runAnalysisPipeline already handles updating video status to 'failed' on error.
+                });
+
+                res.status(200).send('Webhook processed: Cloudinary processing complete, analysis initiated.');
+
             } else {
-                console.log(`[WebhookController] Video record ID ${videoRecord._id} already has a videoUrl. Skipping update.`);
+                console.log(`[WebhookController] Cloudinary upload completed, but eager transformations are still 'processing' or 'failed' for ${public_id}. Current status: ${videoRecord.status}`);
+                // If eager transformations are still pending, keep status as 'processing' or 'uploading'
+                // and wait for 'eager_transformation_completed' notification if eager_async is true.
+                videoRecord.status = 'processing'; // Or 'uploading', depending on your exact flow stages.
+                                                  // 'processing' is likely appropriate here as eager processing is underway.
+                videoRecord.processingStartedAt = videoRecord.processingStartedAt || new Date(); // Set if not already set
+                await videoRecord.save();
+                res.status(200).send('Webhook processed: Cloudinary eager transformations still pending.');
             }
-
-            // Trigger the main analysis pipeline now that Cloudinary processing is done
-            // Use the videoRecord's data and the final secure_url from the webhook
-            // Make sure not to await this, so the webhook response can be sent quickly
-            runAnalysisPipeline(
-                videoRecord._id,
-                secure_url,
-                videoRecord.userId,
-                videoRecord.filename,
-                videoRecord.videoName,
-                public_id
-            ).catch(analysisErr => {
-                console.error(`[WebhookController] Uncaught error during async analysis pipeline for ${public_id}:`, analysisErr);
-                // The runAnalysisPipeline function already handles updating the video status to 'failed'
-                // if an error occurs within it.
-            });
-
-            res.status(200).send('Webhook processed: Analysis pipeline initiated.');
 
         } else if (status === 'failed') {
             console.error(`[WebhookController] Cloudinary processing failed for ${public_id}. Error details: ${error}`);
-            videoRecord.status = 'Cloudinary Processing Failed';
+            videoRecord.status = 'failed'; // Matches enum: 'failed'
             videoRecord.errorMessage = `Cloudinary processing failed: ${error || 'Unknown error'}`;
+            videoRecord.processingCompletedAt = new Date(); // Mark completion of processing stage as failed
             await videoRecord.save();
             res.status(200).send('Webhook processed: Cloudinary processing failed, status updated.');
         } else {
@@ -556,7 +576,7 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
         videoName: video.videoName,
         status: video.status,
         errorMessage: video.errorMessage || null,
-        uploadDate: video.uploadDate,
+        uploadStartedAt: video.uploadStartedAt, // Use the new timestamp field
         videoUrl: video.videoUrl, // Include the video URL for frontend preview
         analysisId: video.analysisId,
         analysisData: analysisData // Include analysis data if available
@@ -566,6 +586,6 @@ const checkVideoStatus = asyncHandler(async (req, res) => {
 module.exports = {
     uploadVideo,
     getUserVideos,
-    handleCloudinaryWebhook, // <--- This is the line at 439
+    handleCloudinaryWebhook,
     checkVideoStatus
 };
