@@ -291,7 +291,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
             throw new Error('Server Error: BACKEND_URL environment variable is not set.');
         }
 
-        const notificationUrl = `${process.env.BACKEND_URL}/api/cloudinary-webhook`;
+        const notificationUrl = `${process.env.BACKEND_URL}/api/analysis/cloudinary-webhook`; // Make sure this matches your actual route
         console.log(`[UploadController] Using Cloudinary webhook URL: ${notificationUrl}`);
         console.log('[UploadController] Attempting direct upload to Cloudinary with webhook notification...');
 
