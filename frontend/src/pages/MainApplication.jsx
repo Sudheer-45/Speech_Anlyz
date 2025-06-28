@@ -13,7 +13,7 @@ const videoConstraints = {
 };
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
-const POLLING_INTERVAL = 3000; // 3 seconds
+const POLLING_INTERVAL = 5000; // 3 seconds
 const MAX_POLLING_ATTEMPTS = 60; // Increased to 3 minutes (60 * 3 seconds) for longer processing
 
 function MainApplication() {
@@ -57,8 +57,9 @@ function MainApplication() {
             if (!token) throw new Error('User not authenticated');
 
             // FIX: Corrected the polling URL to match backend route /api/status/:videoId
-            const response = await axios.get(`${RENDER_BACKEND_URL}/api/status/${videoId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            // In checkVideoStatus function:
+            const response = await axios.get(`${RENDER_BACKEND_URL}/api/status/${videoId}`, { // <-- NO /videos/ here
+            headers: { 'Authorization': `Bearer ${token}` }
             });
             return response.data;
         } catch (error) {
