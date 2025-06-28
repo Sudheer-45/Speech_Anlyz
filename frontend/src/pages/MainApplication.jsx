@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AuthenticatedNavbar from '../components/AuthenticatedNavbar';
-import Footer from '../components/Footer';
+import AuthenticatedNavbar from '../components/AuthenticatedNavbar'; // Ensure this path is correct
+import Footer from '../components/Footer'; // Ensure this path is correct
 import axios from 'axios';
 import Webcam from 'react-webcam';
-import './MainApplication.css';
+import './MainApplication.css'; // Ensure this path is correct for your CSS
 
 const videoConstraints = {
     width: 1280,
@@ -13,16 +13,18 @@ const videoConstraints = {
 };
 
 const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
-const POLLING_INTERVAL = 5000; // 3 seconds
-const MAX_POLLING_ATTEMPTS = 60; // Increased to 3 minutes (60 * 3 seconds) for longer processing
+const POLLING_INTERVAL = 3000; // 3 seconds
+const MAX_POLLING_ATTEMPTS = 60; // Max attempts (60 * 3 seconds = 180 seconds = 3 minutes)
 
 function MainApplication() {
     const navigate = useNavigate();
     const [message, setMessage] = useState('');
     const [isError, setIsError] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false); // For upload/analysis initiation
     const [videoName, setVideoName] = useState('');
-    const [uploadedFile, setUploadedFile] = useState(null);
+    const [uploadedFile, setUploadedFile] = useState(null); // For manual file upload
+    
+    // Webcam/Recording states
     const webcamRef = useRef(null);
     const mediaRecorderRef = useRef(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -31,45 +33,58 @@ function MainApplication() {
     const [recordedVideoURL, setRecordedVideoURL] = useState('');
     const [showRecordedControls, setShowRecordedControls] = useState(false);
     const [showWebcam, setShowWebcam] = useState(false);
-    const [recordingAttemptStarted, setRecordingAttemptStarted] = useState(false);
-    const [recordedTime, setRecordedTime] = useState(0);
-    const timerIntervalRef = useRef(null);
-    const pollingRef = useRef(null);
-    const pollingAttemptsRef = useRef(0);
+    const [recordingAttemptStarted, setRecordingAttemptStarted] = useState(false); // To manage camera initiation
+    const [recordedTime, setRecordedTime] = useState(0); // For recording timer
+    const timerIntervalRef = useRef(null); // Ref for recording timer interval
 
+    // Polling states and refs
+    const pollingRef = useRef(null); // Ref for polling interval
+    const pollingAttemptsRef = useRef(0); // Counter for polling attempts
+
+    // Utility function to format time for display
     const formatTime = (totalSeconds) => {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
 
-    const stopPolling = () => {
+    // Function to stop any active polling interval
+    const stopPolling = useCallback(() => {
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
+            console.log('Polling stopped.');
         }
-        pollingAttemptsRef.current = 0; // Reset attempts when stopping
-    };
+        pollingAttemptsRef.current = 0; // Reset attempts counter
+    }, []);
 
+    // Function to check video status with the backend
     const checkVideoStatus = async (videoId) => {
+        if (!videoId) {
+            console.error('checkVideoStatus called with null/undefined videoId.');
+            throw new Error('Video ID is missing for status check.');
+        }
         try {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('User not authenticated');
 
             // FIX: Corrected the polling URL to match backend route /api/status/:videoId
-            // In checkVideoStatus function:
-            const response = await axios.get(`${RENDER_BACKEND_URL}/api/status/${videoId}`, { // <-- NO /videos/ here
-            headers: { 'Authorization': `Bearer ${token}` }
+            const response = await axios.get(`${RENDER_BACKEND_URL}/api/status/${videoId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            return response.data;
+            console.log(`Status for video ${videoId}:`, response.data.status);
+            return response.data; // Returns { _id, videoName, status, videoUrl, errorMessage, analysisId, analysisData }
         } catch (error) {
-            console.error('Status check error:', error);
-            throw error;
+            console.error('Status check API error:', error.response?.data?.message || error.message);
+            throw error; // Re-throw to be caught by startPolling
         }
     };
 
-    const startPolling = (videoId, videoName) => {
-        stopPolling(); // Ensure any previous polling is stopped
+    // Function to start the polling mechanism
+    const startPolling = useCallback((videoId, videoName) => {
+        stopPolling(); // Stop any pre-existing polling to prevent duplicates
+        console.log(`Starting polling for video ID: ${videoId}`);
+
         pollingRef.current = setInterval(async () => {
             try {
                 pollingAttemptsRef.current += 1;
@@ -78,30 +93,34 @@ function MainApplication() {
                     stopPolling();
                     setMessage('Analysis is taking longer than expected. Please check back later or view your videos on the dashboard.');
                     setIsError(true);
-                    return;
+                    return; // Exit polling loop
                 }
 
                 const statusResponse = await checkVideoStatus(videoId);
                 setMessage(`Processing video (Status: ${statusResponse.status}). Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS}...`);
 
+                // Check final statuses
                 if (statusResponse.status === 'analyzed') {
                     stopPolling();
                     setMessage('Video analysis completed!');
                     setIsError(false); // Clear error state on success
+                    // Navigate to results page with all necessary data
                     navigate('/app/results', { 
                         state: { 
                             videoRecordId: videoId,
-                            videoUrl: statusResponse.videoUrl, // Make sure this is passed
-                            videoName,
+                            videoUrl: statusResponse.videoUrl, // Pass the final Cloudinary URL
+                            videoName, // Pass the video name
                             analysisId: statusResponse.analysisId,
-                            analysisData: statusResponse.analysisData // Pass the full analysis data
+                            analysisData: statusResponse.analysisData // Pass the full analysis data object
                         } 
                     });
                 } else if (statusResponse.status === 'failed') {
                     stopPolling();
                     setMessage(`Analysis failed: ${statusResponse.errorMessage || 'Unknown error'}. Please try again.`);
                     setIsError(true);
-                } else if (statusResponse.status === 'Cloudinary Uploading') {
+                } 
+                // Display specific progress messages based on backend status
+                else if (statusResponse.status === 'Cloudinary Uploading') {
                     setMessage(`Cloudinary Uploading (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
                 } else if (statusResponse.status === 'processing') {
                     setMessage(`Cloudinary Processing (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
@@ -109,9 +128,9 @@ function MainApplication() {
                     setMessage(`Analyzing Video (Attempt ${pollingAttemptsRef.current}/${MAX_POLLING_ATTEMPTS})...`);
                 }
             } catch (error) {
-                console.error('Polling error:', error);
-                // Only stop polling definitively if max attempts reached or specific critical error
-                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS || error.response?.status === 404 || error.response?.status === 403) {
+                console.error('Polling error caught by interval:', error);
+                // Stop polling definitively if max attempts reached or critical HTTP errors occur
+                if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS || error.response?.status === 404 || error.response?.status === 403 || error.message === 'Video ID is missing for status check.') {
                     stopPolling();
                     setMessage(`Failed to check status: ${error.response?.data?.message || error.message}. Please refresh the page.`);
                     setIsError(true);
@@ -120,12 +139,13 @@ function MainApplication() {
                 }
             }
         }, POLLING_INTERVAL);
-    };
+    }, [navigate, stopPolling]); // Include navigate and stopPolling in dependencies
 
+    // Main function to handle both uploaded files and recorded videos for analysis
     const handleUploadAndAnalyze = async (fileToUpload, nameForVideo) => {
         setMessage('');
         setIsError(false);
-        setIsLoading(true);
+        setIsLoading(true); // Start loading state
 
         if (!fileToUpload) {
             setMessage('No video file selected or recorded.');
@@ -135,76 +155,84 @@ function MainApplication() {
         }
 
         const formData = new FormData();
-        formData.append('video', fileToUpload);
+        formData.append('video', fileToUpload); // 'video' must match Multer field name in backend
         formData.append('videoName', nameForVideo || fileToUpload.name);
 
         try {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('User not authenticated. Please log in.');
 
+            // Initial POST request to your backend's upload endpoint
             const uploadResponse = await axios.post(`${RENDER_BACKEND_URL}/api/upload`, formData, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
+                    'Content-Type': 'multipart/form-data' // Important for file uploads
                 },
+                // Progress event handler for upload percentage display
                 onUploadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                     setMessage(`Uploading video: ${percentCompleted}%`);
                 }
             });
 
-            // Capture videoRecordId from the backend response
+            // FIX: Ensure videoRecordId is correctly destructured and captured
             const { videoRecordId, message: responseMessage } = uploadResponse.data;
             
             if (!videoRecordId) {
-                throw new Error('Backend did not return a video record ID.');
+                // If backend doesn't return videoRecordId, it's a critical failure
+                throw new Error('Backend did not return a video record ID after upload initiation.');
             }
 
-            setMessage(responseMessage || 'Video uploaded. Processing may take a few minutes...');
-            cleanupAfterUpload();
-            // Pass the captured videoRecordId to startPolling
+            setMessage(responseMessage || 'Video upload initiated. Processing may take a few minutes...');
+            cleanupAfterUpload(); // Reset UI elements after successful initiation
+            
+            // FIX: Pass the captured videoRecordId to startPolling
             startPolling(videoRecordId, nameForVideo || fileToUpload.name);
 
         } catch (error) {
-            stopPolling(); // Stop polling if initial upload fails
-            handleUploadError(error);
+            stopPolling(); // Always stop polling if initial upload fails
+            handleUploadError(error); // Centralized error handling for upload
         } finally {
-            setIsLoading(false);
+            setIsLoading(false); // End loading state
         }
     };
 
-    const cleanupAfterUpload = () => {
+    // Resets states related to file upload and recorded video for a clean slate
+    const cleanupAfterUpload = useCallback(() => {
         setUploadedFile(null);
         setRecordedVideoBlob(null);
-        if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
+        if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL); // Clean up Blob URL
         setRecordedVideoURL('');
-        recordedChunksRef.current = [];
-        setShowRecordedControls(false);
-        setVideoName('');
-    };
+        recordedChunksRef.current = []; // Clear recorded video chunks
+        setShowRecordedControls(false); // Hide recorded video controls
+        setVideoName(''); // Clear video name input
+    }, [recordedVideoURL]); // Depend on recordedVideoURL for cleanup
 
-    const handleUploadError = (error) => {
+    // Handles and displays errors encountered during upload or analysis initiation
+    const handleUploadError = useCallback((error) => {
         const errorMessage = error.response?.data?.message || 
                              error.response?.data?.error || 
                              error.message || 
-                             'Video upload failed. Please try again.';
+                             'Video operation failed. Please try again.';
         setMessage(errorMessage);
         setIsError(true);
-        console.error('Upload Error:', error);
-    };
+        console.error('Upload/Analysis Error:', error);
+    }, []);
 
-    const handleFileChange = (e) => {
+    // Handles file selection for manual upload
+    const handleFileChange = useCallback((e) => {
         const file = e.target.files[0];
         if (file) {
             setUploadedFile(file);
-            if (!videoName) setVideoName(file.name.split('.')[0]);
-            resetRecordingState();
+            if (!videoName) setVideoName(file.name.split('.')[0]); // Auto-fill video name
+            resetRecordingState(); // Clear any recording states
             setMessage('');
             setIsError(false);
         }
-    };
+    }, [videoName, resetRecordingState]);
 
-    const resetRecordingState = () => {
+    // Resets all recording-related states
+    const resetRecordingState = useCallback(() => {
         setRecordedVideoBlob(null);
         if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL);
         setRecordedVideoURL('');
@@ -213,21 +241,23 @@ function MainApplication() {
         setShowWebcam(false);
         setIsRecording(false);
         setRecordingAttemptStarted(false);
-        clearInterval(timerIntervalRef.current);
+        clearInterval(timerIntervalRef.current); // Stop recording timer
         setRecordedTime(0);
-        stopPolling(); // Also stop any lingering polling
-    };
+        stopPolling(); // Ensure polling is stopped if user starts new recording
+    }, [recordedVideoURL, stopPolling]); // Include stopPolling in dependencies
 
+    // Callback for when MediaRecorder has video data available
     const handleDataAvailable = useCallback(({ data }) => {
         if (data.size > 0) recordedChunksRef.current.push(data);
     }, []);
 
+    // Callback for when webcam stream is successfully obtained
     const handleUserMedia = useCallback((stream) => {
         setMessage('Camera and microphone ready. Recording started.');
         setIsError(false);
 
         recordedChunksRef.current = [];
-        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8' });
+        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8' }); // Specify MIME type
 
         mediaRecorderRef.current.addEventListener('dataavailable', handleDataAvailable);
         mediaRecorderRef.current.onstop = () => {
@@ -239,30 +269,32 @@ function MainApplication() {
                 setShowRecordedControls(false);
                 setShowWebcam(false);
                 setRecordingAttemptStarted(false);
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(track => track.stop()); // Stop all media tracks
                 return;
             }
 
             setRecordedVideoBlob(blob);
-            setRecordedVideoURL(URL.createObjectURL(blob));
-            setShowRecordedControls(true);
+            setRecordedVideoURL(URL.createObjectURL(blob)); // Create URL for preview
+            setShowRecordedControls(true); // Show preview controls
             setMessage('Recording stopped. Preview available.');
             setIsError(false);
 
-            stream.getTracks().forEach(track => track.stop());
-            setShowWebcam(false);
+            stream.getTracks().forEach(track => track.stop()); // Stop all media tracks
+            setShowWebcam(false); // Hide webcam preview
             setRecordingAttemptStarted(false);
         };
 
-        mediaRecorderRef.current.start();
+        mediaRecorderRef.current.start(); // Start recording
         setIsRecording(true);
 
+        // Start recording timer
         setRecordedTime(0);
         timerIntervalRef.current = setInterval(() => {
             setRecordedTime(prev => prev + 1);
         }, 1000);
     }, [handleDataAvailable]);
 
+    // Callback for webcam access errors
     const handleUserMediaError = useCallback((error) => {
         console.error('Webcam access error:', error);
         setMessage(`Camera/mic access failed: ${error.name || error.message}. Check permissions.`);
@@ -274,55 +306,60 @@ function MainApplication() {
         setRecordingAttemptStarted(false);
     }, []);
 
+    // Function to start recording via webcam
     const startRecording = useCallback(() => {
         setMessage('');
         setIsError(false);
-        setUploadedFile(null);
-        resetRecordingState();
-        setRecordingAttemptStarted(true);
-        setShowWebcam(true);
-    }, []);
+        setUploadedFile(null); // Clear any uploaded file
+        resetRecordingState(); // Reset recording state for a fresh start
+        setRecordingAttemptStarted(true); // Indicate attempt to start webcam
+        setShowWebcam(true); // Show webcam component
+    }, [resetRecordingState]);
 
+    // Function to stop recording via webcam
     const stopRecording = useCallback(() => {
         setIsRecording(false);
-        clearInterval(timerIntervalRef.current);
+        clearInterval(timerIntervalRef.current); // Stop recording timer
 
         if (mediaRecorderRef.current?.state === 'recording') {
-            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current.stop(); // Stop MediaRecorder
         }
     }, []);
 
-    const handleUploadRecordedVideo = () => {
+    // Handles uploading the recorded video blob
+    const handleUploadRecordedVideo = useCallback(() => {
         if (recordedVideoBlob) {
+            // Create a File object from the Blob for upload
             const defaultName = `recorded_video_${new Date().toISOString().slice(0, 10)}.webm`;
             const recordedFile = new File([recordedVideoBlob], videoName || defaultName, { type: 'video/webm' });
             handleUploadAndAnalyze(recordedFile, videoName);
         } else {
-            setMessage('No recorded video available.');
+            setMessage('No recorded video available to upload.');
             setIsError(true);
         }
-    };
+    }, [recordedVideoBlob, videoName, handleUploadAndAnalyze]);
 
+    // Allows user to re-record
     const handleRerecord = useCallback(() => {
-        resetRecordingState();
-        setRecordingAttemptStarted(true);
-        setShowWebcam(true);
+        resetRecordingState(); // Reset all states
+        setRecordingAttemptStarted(true); // Start new recording attempt
+        setShowWebcam(true); // Show webcam
         setMessage('');
         setIsError(false);
-    }, []);
+    }, [resetRecordingState]);
 
+    // useEffect for cleanup on component unmount or URL changes
     useEffect(() => {
-        // Cleanup function for when component unmounts
         return () => {
-            stopPolling(); // Stop polling if component unmounts
+            stopPolling(); // Ensure polling stops when component unmounts
             clearInterval(timerIntervalRef.current); // Clear recording timer
-            if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL); // Revoke recorded video URL
-            // Stop webcam tracks if they are still active
+            if (recordedVideoURL) URL.revokeObjectURL(recordedVideoURL); // Revoke recorded video object URL
+            // Stop webcam tracks if active
             if (webcamRef.current?.stream) {
                 webcamRef.current.stream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [recordedVideoURL]); // Dependency on recordedVideoURL for object URL cleanup
+    }, [recordedVideoURL, stopPolling]); // Dependencies for cleanup
 
     return (
         <div className="main-app-container">
@@ -339,12 +376,14 @@ function MainApplication() {
                 </div>
 
                 <div className="video-input-options">
+                    {/* Message display for status/errors */}
                     {message && (
                         <p className={`status-message ${isError ? 'error' : 'success'}`}>
                             {message}
                         </p>
                     )}
 
+                    {/* Video Name Input */}
                     <div className="form-group video-name-group">
                         <label htmlFor="videoName">Video Name</label>
                         <input
@@ -353,10 +392,11 @@ function MainApplication() {
                             value={videoName}
                             onChange={(e) => setVideoName(e.target.value)}
                             placeholder="e.g., Google Interview Practice"
-                            disabled={isLoading || isRecording || recordingAttemptStarted}
+                            disabled={isLoading || isRecording || recordingAttemptStarted} // Disable while processing
                         />
                     </div>
 
+                    {/* Upload and Record Sections */}
                     <div className="upload-record-sections">
                         <section className="upload-section">
                             <h2>Upload Existing Video</h2>
@@ -386,6 +426,7 @@ function MainApplication() {
                         <section className="record-section">
                             <h2>Record New Video</h2>
                             <div className="video-area">
+                                {/* Webcam Live Preview */}
                                 {showWebcam ? (
                                     <Webcam
                                         audio={true}
@@ -393,21 +434,24 @@ function MainApplication() {
                                         ref={webcamRef}
                                         videoConstraints={videoConstraints}
                                         className="webcam-preview"
-                                        mirrored={true}
-                                        onUserMedia={handleUserMedia}
-                                        onUserMediaError={handleUserMediaError}
+                                        mirrored={true} // Usually desired for self-view
+                                        onUserMedia={handleUserMedia} // Callback for successful media access
+                                        onUserMediaError={handleUserMediaError} // Callback for media access errors
                                     />
                                 ) : recordedVideoURL ? (
+                                    // Recorded Video Preview
                                     <div className="recorded-preview-container">
                                         <video src={recordedVideoURL} controls className="recorded-preview" />
                                     </div>
                                 ) : (
+                                    // Initial message when no video is uploaded/recorded
                                     <p className="no-video-message">
                                         {videoName.trim() ? 'Click "Start Recording" to begin' : 'Enter a video name to enable recording'}
                                     </p>
                                 )}
                             </div>
 
+                            {/* Recording Controls */}
                             <div className="recording-controls">
                                 {!isRecording && !showRecordedControls ? (
                                     <button
