@@ -2,35 +2,42 @@
 const express = require('express');
 const router = express.Router();
 const { handleCloudinaryWebhook } = require('../controllers/videoController');
+const getRawBody = require('raw-body'); // <-- This line requires 'raw-body' to be installed
 
-// This middleware specifically for raw body parsing.
-// It should be placed BEFORE any other body parsing middleware (like express.json())
-// for the paths it's intended to handle.
-router.use(express.text({ type: '*/*' })); // Parses all incoming request bodies as raw text
-
-// Custom middleware to set req.rawBody and then attempt to parse req.body as JSON
-router.use((req, res, next) => {
-    // req.body from express.text() will be the raw string if type: '*/*' is used
-    if (typeof req.body === 'string' && req.body.length > 0) {
-        req.rawBody = req.body; // Store the raw string
+// Custom middleware to capture the raw body as a buffer, always.
+// It should be the first middleware used for this router to ensure it gets the body before other parsers consume it.
+// We expect Cloudinary webhooks to be JSON, but this approach is more robust.
+router.use(async (req, res, next) => {
+    // Only process if the request has a body and is a POST request
+    if (req.method === 'POST' && req.headers['content-length'] && parseInt(req.headers['content-length']) > 0) {
         try {
-            // Attempt to parse as JSON for the controller to use req.body as an object
-            req.body = JSON.parse(req.rawBody);
-        } catch (e) {
-            console.warn('[WebhookMiddleware] Could not parse raw body as JSON, proceeding with raw string for signature verification.', e.message);
-            // If parsing fails, req.body remains the raw string, handleCloudinaryWebhook must use req.rawBody
+            // Use raw-body to get the buffer, then convert to string
+            const rawBodyBuffer = await getRawBody(req, {
+                length: req.headers['content-length'],
+                encoding: 'utf8' // Cloudinary webhooks are typically UTF-8 JSON
+            });
+            req.rawBody = rawBodyBuffer; // Store the raw string for signature verification
+
+            // Attempt to re-parse the raw body string as JSON for req.body
+            try {
+                req.body = JSON.parse(rawBodyBuffer);
+            } catch (jsonParseError) {
+                // If it's not JSON, req.body will remain the raw string.
+                // The controller should use req.rawBody for signature and be aware req.body might be a string.
+                console.warn('[WebhookMiddleware] Could not parse raw body as JSON:', jsonParseError.message);
+            }
+        } catch (rawBodyError) {
+            console.error('[WebhookMiddleware] Error capturing raw body:', rawBodyError.message);
+            req.rawBody = undefined; // Ensure rawBody is explicitly undefined on error
         }
     } else {
-        // If req.body is not a string (e.g., empty or unexpected type), set rawBody to undefined/null
-        req.rawBody = undefined;
-        console.warn('[WebhookMiddleware] req.body was not a string or was empty for raw body capture.');
+        req.rawBody = undefined; // No body or not a POST, ensure rawBody is undefined
     }
     next();
 });
 
 // POST route for Cloudinary webhooks
-// This endpoint receives notifications from Cloudinary when video processing is done.
-// The full path in server.js is /api/webhook, so this becomes /api/webhook/
+// The full path when mounted in server.js at /api/webhook will be /api/webhook/
 router.post('/', handleCloudinaryWebhook);
 
 module.exports = router;
