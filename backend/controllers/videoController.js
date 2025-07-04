@@ -422,30 +422,33 @@ const handleCloudinaryWebhook = asyncHandler(async (req, res) => {
     
     // Ensure rawBody is available (set by middleware in webhookRoutes.js)
     const rawBodyString = req.rawBody; // Assumed to be correctly set by webhookRoutes middleware
-    const receivedSignature = req.headers['x-cld-signature'];
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const signature = req.headers['x-cld-signature'];
+    const timestamp = req.headers['x-cld-timestamp']; // Use header timestamp for verification
 
     console.log('DEBUG: [WebhookController] Raw Body for signature (stringified):', rawBodyString ? rawBodyString.substring(0, 200) + '...' : 'N/A');
+    console.log('DEBUG: [WebhookController] Timestamp for signature:', timestamp);
 
-    if (!receivedSignature || !rawBodyString) {
+
+    if (!signature || !timestamp || !rawBodyString) {
         console.error('[WebhookController] Missing Cloudinary webhook headers or raw body for signature verification.');
         // Respond with 200 to prevent Cloudinary retrying endlessly for missing headers
         return res.status(200).send('Missing webhook headers or raw body.');
     }
 
-    // Correct signature verification: SHA1(rawBody + apiSecret)
-    const crypto = require('crypto');
-    const expectedSignature = crypto
-        .createHash('sha1')
-        .update(rawBodyString + apiSecret)
-        .digest('hex');
-
-    if (expectedSignature !== receivedSignature) {
-        console.error('[WebhookController] Webhook signature verification failed! Expected:', expectedSignature, 'Received:', receivedSignature);
-        // Respond with 200 to prevent Cloudinary retrying endlessly on signature mismatch
-        return res.status(200).send('Invalid webhook signature (logged as warning)');
+    try {
+        // FIX: Use cloudinary.utils.api_sign_request for proper verification
+        const expectedSignature = cloudinary.utils.api_sign_request(rawBodyString, process.env.CLOUDINARY_API_SECRET, timestamp);
+        if (expectedSignature !== signature) {
+            console.error('[WebhookController] Webhook signature verification failed! Expected:', expectedSignature, 'Received:', signature);
+            // Respond with 200 to prevent Cloudinary retrying endlessly on signature mismatch
+            return res.status(200).send('Invalid webhook signature (logged as warning)');
+        }
+        console.log('[WebhookController] Webhook signature verified successfully.');
+    } catch (sigErr) {
+        console.error('[WebhookController] Error during webhook signature verification:', sigErr);
+        // Respond with 200 for internal errors during verification
+        return res.status(200).send('Webhook signature verification error (logged as warning)'); 
     }
-    console.log('[WebhookController] Webhook signature verified successfully.');
 
     const { notification_type, public_id, url, secure_url, status, error, eager } = req.body; 
 
