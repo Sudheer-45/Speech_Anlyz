@@ -5,120 +5,131 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import './AuthPage.css';
 
+const RENDER_BACKEND_URL = "https://comm-analyzer.onrender.com";
+
 function SignupPage() {
-    const [username, setUsername] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [message, setMessage] = useState('');
-    const [isError, setIsError] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
+
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setMessage('');
-        setIsError(false);
-        setIsSubmitting(true);
+        setIsLoading(true);
+        setError('');
+
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
+            setIsLoading(false);
+            return;
+        }
 
         try {
-            const response = await axios.post('https://comm-analyzer.onrender.com/api/auth/signup', {
-                username,
-                email,
-                password,
+            const response = await axios.post(`${RENDER_BACKEND_URL}/api/auth/signup`, {
+                name: formData.name,
+                email: formData.email,
+                password: formData.password
             });
             
-            setMessage(response.data.message || 'Registration successful! Redirecting to login...');
-            setIsError(false);
-
-            setTimeout(() => {
-                navigate('/login');
-            }, 500);
-
+            if (response.data.token) {
+                localStorage.setItem('token', response.data.token);
+                localStorage.setItem('user', JSON.stringify(response.data.user));
+                navigate('/app');
+            }
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-            setMessage(errorMessage);
-            setIsError(true);
-            console.error('Signup Error:', error);
+            setError(error.response?.data?.message || 'Signup failed. Please try again.');
         } finally {
-            setIsSubmitting(false);
+            setIsLoading(false);
         }
     };
 
     return (
-        <div className="page-wrapper">
+        <div className="auth-page">
             <Navbar />
-            <div className="auth-page-container">
-                <div className="auth-form-wrapper" data-tilt>
-                    <div className="auth-form-inner">
-                        <h1 className="auth-heading">Create Account</h1>
-                        <form onSubmit={handleSubmit} className="auth-form">
-                            <div className="form-group">
-                                <label htmlFor="username" className="form-label">Username</label>
-                                <div className="input-container" data-tilt data-tilt-max="10" data-tilt-speed="200">
-                                    <input
-                                        type="text"
-                                        id="username"
-                                        className="form-input"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        required
-                                        disabled={isSubmitting}
-                                        placeholder="Enter your username"
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="email" className="form-label">Email</label>
-                                <div className="input-container" data-tilt data-tilt-max="10" data-tilt-speed="200">
-                                    <input
-                                        type="email"
-                                        id="email"
-                                        className="form-input"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        disabled={isSubmitting}
-                                        placeholder="Enter your email"
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="password" className="form-label">Password</label>
-                                <div className="input-container" data-tilt data-tilt-max="10" data-tilt-speed="200">
-                                    <input
-                                        type="password"
-                                        id="password"
-                                        className="form-input"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required
-                                        disabled={isSubmitting}
-                                        placeholder="Enter your password"
-                                    />
-                                </div>
-                            </div>
-                            <button 
-                                type="submit" 
-                                className="auth-button" 
-                                disabled={isSubmitting}
-                                data-tilt data-tilt-max="15" data-tilt-speed="300"
-                            >
-                                {isSubmitting ? (
-                                    <span className="button-loading">Signing Up...</span>
-                                ) : (
-                                    'Sign Up'
-                                )}
-                            </button>
-                        </form>
-                        {message && (
-                            <p className={`auth-message ${isError ? 'error' : 'success'}`}>
-                                {message}
-                            </p>
-                        )}
-                        <p className="auth-link">
-                            Already have an account? <Link to="/login">Login</Link>
-                        </p>
-                    </div>
+            <div className="auth-container">
+                <div className="auth-form-wrapper">
+                    <h2>Create Your Account</h2>
+                    <p>Join us to start improving your communication skills</p>
+                    
+                    {error && <div className="error-message">{error}</div>}
+                    
+                    <form onSubmit={handleSubmit} className="auth-form">
+                        <div className="input-container">
+                            <label htmlFor="name">Full Name</label>
+                            <input
+                                type="text"
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                        
+                        <div className="input-container">
+                            <label htmlFor="email">Email</label>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                        
+                        <div className="input-container">
+                            <label htmlFor="password">Password</label>
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                        
+                        <div className="input-container">
+                            <label htmlFor="confirmPassword">Confirm Password</label>
+                            <input
+                                type="password"
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                        
+                        <button 
+                            type="submit" 
+                            className="auth-button"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Creating Account...' : 'Create Account'}
+                        </button>
+                    </form>
+                    
+                    <p className="auth-link">
+                        Already have an account? <Link to="/login">Sign in here</Link>
+                    </p>
                 </div>
             </div>
             <Footer />
