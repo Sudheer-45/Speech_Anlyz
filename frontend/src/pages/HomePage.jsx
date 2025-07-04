@@ -6,61 +6,42 @@ import './HomePage.css';
 
 function HomePage() {
   return (
-    <div className="homepage-container">
+    <div className="home-page">
       <Navbar />
-      <main className="homepage-content">
-        <div className="hero-section" data-tilt>
-          <h1>Welcome to Comm Analyzer!</h1>
-          <p>Your personal assistant for improving speech, grammar, and conversational skills.</p>
-          <Link to="/signup" className="about-signup-btn" data-tilt data-tilt-max="10">Get Started</Link>
+      <div className="hero-section">
+        <h1>Enhance Your Communication Skills</h1>
+        <p>Get instant feedback on your speech, grammar, and presentation skills</p>
+        <Link to="/signup" className="about-signup-btn">Get Started</Link>
+      </div>
+      <section className="overview-section">
+        <h2>Why Choose Comm Analyzer?</h2>
+        <div className="features-grid">
+          <div className="feature-card">
+            <h3>Instant Analysis</h3>
+            <p>Get detailed feedback on your speech within minutes</p>
+          </div>
+          <div className="feature-card">
+            <h3>Grammar Check</h3>
+            <p>Advanced grammar analysis using LanguageTool API</p>
+          </div>
+          <div className="feature-card">
+            <h3>Filler Word Detection</h3>
+            <p>Identify and reduce filler words in your speech</p>
+          </div>
+          <div className="feature-card">
+            <h3>Speaking Rate Analysis</h3>
+            <p>Optimize your speaking pace for better communication</p>
+          </div>
+          <div className="feature-card">
+            <h3>Sentiment Analysis</h3>
+            <p>Understand the emotional tone of your speech</p>
+          </div>
+          <div className="feature-card">
+            <h3>Progress Tracking</h3>
+            <p>Monitor your improvement over time</p>
+          </div>
         </div>
-        <section className="overview-section" data-tilt>
-          <div className="section-inner">
-            <h2>How It Works</h2>
-            <p>
-              Comm Analyzer allows you to upload videos or record yourself speaking. Our advanced AI analyzes your audio for clarity, grammar errors, vocabulary usage, and overall conversational flow.
-            </p>
-            <p>
-              Get instant, detailed feedback to identify areas for improvement and track your progress over time. Whether you're preparing for a presentation, an interview, or just want to speak more confidently, we've got you covered.
-            </p>
-          </div>
-        </section>
-        <section className="features-section">
-          <h2>Key Features</h2>
-          <div className="features-grid">
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">🎙️</span>
-              <h3>Speech Clarity Analysis</h3>
-              <p>Evaluate pronunciation and articulation for crystal-clear communication.</p>
-            </div>
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">✍️</span>
-              <h3>Grammar and Syntax Correction</h3>
-              <p>Identify and fix grammatical errors to enhance your speech.</p>
-            </div>
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">📚</span>
-              <h3>Vocabulary Enrichment</h3>
-              <p>Get suggestions to diversify and strengthen your word choice.</p>
-            </div>
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">⏱️</span>
-              <h3>Fluency and Pace Tracking</h3>
-              <p>Monitor your speaking speed and flow for natural delivery.</p>
-            </div>
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">😊</span>
-              <h3>Sentiment and Tone Analysis</h3>
-              <p>Understand the emotional impact of your speech.</p>
-            </div>
-            <div className="feature-card" data-tilt data-tilt-max="10">
-              <span className="feature-icon">📊</span>
-              <h3>Progress Tracking Dashboard</h3>
-              <p>Visualize your improvement with detailed analytics.</p>
-            </div>
-          </div>
-        </section>
-      </main>
+      </section>
       <Footer />
     </div>
   );
